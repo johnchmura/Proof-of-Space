@@ -49,7 +49,20 @@ Bucket* generate_records(){
 
 
     free(nonce);
-
+    sort_records(buckets, NUM_BUCKETS);
     return buckets;
 
+}
+
+int compare_records(const void* a, const void* b) {
+    const Record* record_a = (const Record*)a;
+    const Record* record_b = (const Record*)b;
+    return memcmp(record_a->hash, record_b->hash, HASH_SIZE);
+}
+
+void sort_records(Bucket* buckets, size_t num_buckets) {
+    for (size_t i = 0; i < num_buckets; i++) {
+        Bucket* bucket = &buckets[i];
+        qsort(bucket->records, bucket->record_count, sizeof(Record), compare_records);
+    }
 }

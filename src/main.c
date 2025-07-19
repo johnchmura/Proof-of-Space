@@ -17,32 +17,30 @@ int verify_record(const Record* record) {
 }
 
 int main() {
-    Record* records = generate_records();
-    if (records == NULL) {
+    Bucket* buckets = generate_records();
+    if (buckets == NULL) {
         fprintf(stderr, "Failed to generate records\n");
         return 1;
     }
 
     printf("Generated records successfully\n");
 
-    for (int i = 0; i < NUM_RECORDS; i++) {
-        printf("Record %d: ", i + 1);
-        for (int j = 0; j < HASH_SIZE; j++) {
-            printf("%02x", records[i].hash[j]);
-        }
-        printf(" Nonce: ");
-        for (int j = 0; j < NONCE_SIZE; j++) {
-            printf("%02x", records[i].nonce[j]);
-        }
+    int total_records = 0;
 
-        if (!verify_record(&records[i])) {
-            printf("INVALID HASH!");
+    for (int i = 0; i < NUM_BUCKETS; i++) {
+        //printf("Bucket %d:\n", i + 1);
+        total_records += buckets[i].record_count;
+        for (int j = 0; j < buckets[i].record_count - 1; j++) {
+            if (memcmp(buckets[i].records[j].hash, buckets[i].records[j + 1].hash, HASH_SIZE) > 0) {
+                printf("Records in bucket %d are not sorted by hash!\n", i + 1);
+                break;
+            }
         }
-
-        printf("\n");
+        //printf("\n");
     }
 
-    printf("Total bytes stored: %u\n", HASH_SIZE * NUM_RECORDS);
-    free(records);
+    printf("Total records generated: %d\n", total_records);
+
+    free(buckets);
     return 0;
 }
