@@ -6,12 +6,12 @@
 
 #define HASH_SIZE 10
 #define NONCE_SIZE 6
-#define K 26
+#define K 10
 #define NUM_RECORDS (1 << K)
 
 #define MAX_MEM 1024 * 1024 * 1024
 
-#define NUM_BUCKETS 67100
+#define NUM_BUCKETS 67100 // 67100 buckets at 1000 records is about a GB of memory
 #define MAX_RECORDS_PER_BUCKET 1000
 
 typedef struct { //total 16 bytes 
@@ -25,6 +25,11 @@ typedef struct {
 } Bucket;
 
 Bucket* generate_records(int num_prefix_bytes);
+
+int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename);
+void print_records(const Record* records, uint16_t count);
+
+int verify_record(const Record* record);
 
 void increment_nonce(uint8_t *nonce, size_t nonce_size);
 

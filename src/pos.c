@@ -57,6 +57,72 @@ Bucket* generate_records(int num_prefix_bytes){
     return buckets;
 }
 
+int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename) {
+    FILE* file = fopen(filename, "wb");
+    
+    if (!file) {
+        perror("Failed to open the file.");
+        return -1;
+    }
+    
+    for (size_t i = 0; i < num_buckets; i++) {
+        Bucket* bucket = &buckets[i];
+
+        uint16_t count = bucket->record_count;
+
+        fputc(count & 0xFF, file); // Write the count of records in each bucket (byte by byte)
+        fputc((count >> 8) & 0xFF, file);
+
+        size_t written = fwrite(bucket->records, sizeof(Record), count, file);
+
+        if (written != count) {
+            perror("Failed to write records to file.");
+            fclose(file);
+            return -1;
+        }
+
+        size_t padding = MAX_RECORDS_PER_BUCKET - count;
+        Record empty_record = {0};
+
+        for (size_t j = 0; j < padding; j++) {
+            if( fwrite(&empty_record, sizeof(Record), 1, file) != 1) { // Write empty records to fill the bucket
+                perror("Failed to write padding records to file.");
+                fclose(file);
+                return -1;
+            }
+        }
+    }
+
+    fclose(file);
+    return 0;
+}
+
+void print_records(const Record* records, uint16_t count) {
+    for (int i = 0; i < count; i++) {
+        if(verify_record(&records[i])){
+            printf("Record %d is valid.\n", i);
+        } else {
+            printf("Record %d is invalid!\n", i);
+        }
+        printf("Hash: ");
+        for (int j = 0; j < HASH_SIZE; j++) {
+            printf("%02x", records[i].hash[j]);
+        }
+        printf("\n");
+    }
+}
+
+
+int verify_record(const Record* record) {
+    uint8_t test_hash[HASH_SIZE];
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(&hasher, record->nonce, NONCE_SIZE);
+    blake3_hasher_finalize(&hasher, test_hash, HASH_SIZE);
+
+    return memcmp(test_hash, record->hash, HASH_SIZE) == 0;
+}
+
 int compare_records(const void* a, const void* b) {
     const Record* record_a = (const Record*)a;
     const Record* record_b = (const Record*)b;

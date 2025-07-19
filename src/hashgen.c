@@ -6,16 +6,6 @@
 #include "../BLAKE3/c/blake3.h"
 #include "../include/pos.h"
 
-int verify_record(const Record* record) {
-    uint8_t test_hash[HASH_SIZE];
-    blake3_hasher hasher;
-    blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, record->nonce, NONCE_SIZE);
-    blake3_hasher_finalize(&hasher, test_hash, HASH_SIZE);
-
-    return memcmp(test_hash, record->hash, HASH_SIZE) == 0;
-}
-
 int main() {
     int num_prefix_bytes = calc_prefix_bytes(NUM_BUCKETS);
     Bucket* buckets = generate_records(num_prefix_bytes);
@@ -49,6 +39,12 @@ int main() {
 
     printf("Total prefix bytes needed: %d\n", calc_prefix_bytes(NUM_BUCKETS));
     printf("Total records generated: %d\n", total_records);
+
+    printf("Dumping buckets to file...\n");
+    if (dump_buckets(buckets, NUM_BUCKETS, "buckets.bin") != 0) {
+        fprintf(stderr, "Failed to dump buckets to file.\n");
+    }
+    printf("Buckets dumped successfully.\n");
 
     free(buckets);
     return 0;

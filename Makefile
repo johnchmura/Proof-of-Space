@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -O2 -IBLAKE3/c
 
-SRC = src/main.c src/pos.c \
+HASH_SRC = src/hashgen.c src/pos.c \
       BLAKE3/c/blake3.c \
       BLAKE3/c/blake3_dispatch.c \
       BLAKE3/c/blake3_portable.c \
@@ -10,15 +10,31 @@ SRC = src/main.c src/pos.c \
       BLAKE3/c/blake3_avx2_x86-64_unix.S \
       BLAKE3/c/blake3_avx512_x86-64_unix.S
 
-OUT = pos_hash
+LOOKUP_SRC = src/lookup.c src/pos.c \
+      BLAKE3/c/blake3.c \
+      BLAKE3/c/blake3_dispatch.c \
+      BLAKE3/c/blake3_portable.c \
+      BLAKE3/c/blake3_sse2_x86-64_unix.S \
+      BLAKE3/c/blake3_sse41_x86-64_unix.S \
+      BLAKE3/c/blake3_avx2_x86-64_unix.S \
+      BLAKE3/c/blake3_avx512_x86-64_unix.S
 
-all: $(OUT)
+HASH_OUT = hashgen
+LOOKUP_OUT = lookup_build
 
-$(OUT): $(SRC)
+all: $(HASH_OUT) $(LOOKUP_OUT)
+
+$(HASH_OUT): $(HASH_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
-run: $(OUT)
-	./$(OUT)
+$(LOOKUP_OUT): $(LOOKUP_SRC)
+	$(CC) $(CFLAGS) -o $@ $^
+
+run-hashgen: $(HASH_OUT)
+	./$(HASH_OUT)
+
+run-lookup: $(LOOKUP_OUT)
+	./$(LOOKUP_OUT)
 
 clean:
-	rm -f $(OUT)
+	rm -f $(HASH_OUT) $(LOOKUP_OUT)
