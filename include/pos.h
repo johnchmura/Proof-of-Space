@@ -9,7 +9,9 @@
 #define K 26
 #define NUM_RECORDS (1 << K)
 
-#define NUM_BUCKETS 256
+#define MAX_MEM 1024 * 1024 * 1024
+
+#define NUM_BUCKETS 67100
 #define MAX_RECORDS_PER_BUCKET 1000
 
 typedef struct { //total 16 bytes 
@@ -22,11 +24,13 @@ typedef struct {
     uint16_t record_count;
 } Bucket;
 
-Bucket* generate_records();
+Bucket* generate_records(int num_prefix_bytes);
 
 void increment_nonce(uint8_t *nonce, size_t nonce_size);
 
 int compare_records(const void* a, const void* b);
 void sort_records(Bucket* buckets, size_t num_buckets);
+
+int calc_prefix_bytes(size_t num_buckets);
 
 #endif

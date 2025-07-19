@@ -17,7 +17,15 @@ int verify_record(const Record* record) {
 }
 
 int main() {
-    Bucket* buckets = generate_records();
+    int num_prefix_bytes = calc_prefix_bytes(NUM_BUCKETS);
+    Bucket* buckets = generate_records(num_prefix_bytes);
+
+    printf("Hashes and nonces successfully generated. Starting sorting...\n");
+
+    sort_records(buckets, NUM_BUCKETS);
+
+    printf("Sorting completed. Verifying records...\n");
+    
     if (buckets == NULL) {
         fprintf(stderr, "Failed to generate records\n");
         return 1;
@@ -39,6 +47,7 @@ int main() {
         //printf("\n");
     }
 
+    printf("Total prefix bytes needed: %d\n", calc_prefix_bytes(NUM_BUCKETS));
     printf("Total records generated: %d\n", total_records);
 
     free(buckets);

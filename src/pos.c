@@ -15,7 +15,7 @@ void increment_nonce(uint8_t *nonce, size_t nonce_size){
     }
 }
 
-Bucket* generate_records(){
+Bucket* generate_records(int num_prefix_bytes){
 
     blake3_hasher hasher;
     Bucket* buckets = calloc(NUM_BUCKETS, sizeof(Bucket));
@@ -35,7 +35,12 @@ Bucket* generate_records(){
 
         blake3_hasher_finalize(&hasher, hash, HASH_SIZE);
 
-        int bucket_i = hash[0] % NUM_BUCKETS;
+        uint32_t bucket_i = 0;
+        for (int j = 0; j < num_prefix_bytes; j++) {
+            bucket_i = (bucket_i << 8) | hash[j];
+        }
+        bucket_i = bucket_i % NUM_BUCKETS;
+
         Bucket* bucket = &buckets[bucket_i];
 
         if (bucket->record_count < MAX_RECORDS_PER_BUCKET) {
@@ -49,9 +54,7 @@ Bucket* generate_records(){
 
 
     free(nonce);
-    sort_records(buckets, NUM_BUCKETS);
     return buckets;
-
 }
 
 int compare_records(const void* a, const void* b) {
@@ -65,4 +68,14 @@ void sort_records(Bucket* buckets, size_t num_buckets) {
         Bucket* bucket = &buckets[i];
         qsort(bucket->records, bucket->record_count, sizeof(Record), compare_records);
     }
+}
+
+int calc_prefix_bytes(size_t num_buckets){
+    int bits = 0;
+    size_t buckets = num_buckets - 1;
+    while (buckets > 0) {
+        bits++;
+        buckets >>= 1;
+    }
+    return (bits + 7) / 8; // Go up if we need more bytes to allow more buckets
 }
