@@ -37,7 +37,6 @@ int main(int argc, char* argv[]) {
     }
 
     printf("Read %d records by hash:\n", out_count);
-    print_records(records, out_count);
     free(records);
     return 0;
 }

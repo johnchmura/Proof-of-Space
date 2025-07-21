@@ -1,0 +1,19 @@
+#ifndef HASHVERIFY_H
+#define HASHVERIFY_H
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "../include/pos.h"
+
+int verify_hashes_file(const char* filename, size_t bucket_batch_size, bool verify_hashes, size_t num_from_head);
+int verify_hash(const Record* record);
+
+void print_record(const Record* record, size_t record_ct);
+void print_tail_records(const char* filename, size_t record_ct, size_t total_records);
+
+
+
+#endif

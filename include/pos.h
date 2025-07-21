@@ -6,7 +6,7 @@
 
 #define HASH_SIZE 10
 #define NONCE_SIZE 6
-#define K 10
+#define K 26
 #define NUM_RECORDS (1 << K)
 
 #define MAX_MEM 1024 * 1024 * 1024
@@ -27,9 +27,6 @@ typedef struct {
 Bucket* generate_records(int num_prefix_bytes);
 
 int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename);
-void print_records(const Record* records, uint16_t count);
-
-int verify_record(const Record* record);
 
 void increment_nonce(uint8_t *nonce, size_t nonce_size);
 

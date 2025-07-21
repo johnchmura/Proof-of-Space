@@ -119,31 +119,17 @@ int main(int argc, char* argv[]) {
     
     if (buckets == NULL) {
         fprintf(stderr, "Failed to generate records\n");
+        free(buckets);
         return 1;
     }
 
     printf("Generated records successfully\n");
 
-    int total_records = 0;
-
-    for (int i = 0; i < NUM_BUCKETS; i++) {
-        //printf("Bucket %d:\n", i + 1);
-        total_records += buckets[i].record_count;
-        for (int j = 0; j < buckets[i].record_count - 1; j++) {
-            if (memcmp(buckets[i].records[j].hash, buckets[i].records[j + 1].hash, HASH_SIZE) > 0) {
-                printf("Records in bucket %d are not sorted by hash!\n", i + 1);
-                break;
-            }
-        }
-        //printf("\n");
-    }
-
-    printf("Total prefix bytes needed: %d\n", calc_prefix_bytes(NUM_BUCKETS));
-    printf("Total records generated: %d\n", total_records);
-
     printf("Dumping buckets to file...\n");
-    if (dump_buckets(buckets, NUM_BUCKETS, "buckets.bin") != 0) {
-        fprintf(stderr, "Failed to dump buckets to file.\n");
+    if (dump_buckets(buckets, NUM_BUCKETS, filename) != 0) {
+        perror("Failed to dump buckets to file.");
+        free(buckets);
+        return 1;
     }
     printf("Buckets dumped successfully.\n");
 

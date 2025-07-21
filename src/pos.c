@@ -35,11 +35,20 @@ Bucket* generate_records(int num_prefix_bytes){
 
         blake3_hasher_finalize(&hasher, hash, HASH_SIZE);
 
+        uint32_t prefix = 0;
         uint32_t bucket_i = 0;
+
         for (int j = 0; j < num_prefix_bytes; j++) {
-            bucket_i = (bucket_i << 8) | hash[j];
+            prefix = (prefix << 8) | hash[j];
         }
-        bucket_i = bucket_i % NUM_BUCKETS;
+        
+        uint32_t max_prefix = 1 << (num_prefix_bytes * 8);
+        uint32_t range_size = max_prefix / NUM_BUCKETS;
+        bucket_i = prefix / range_size;
+
+        if (bucket_i >= NUM_BUCKETS) {
+            bucket_i = NUM_BUCKETS - 1;
+        }
 
         Bucket* bucket = &buckets[bucket_i];
 
@@ -95,32 +104,6 @@ int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename) {
 
     fclose(file);
     return 0;
-}
-
-void print_records(const Record* records, uint16_t count) {
-    for (int i = 0; i < count; i++) {
-        if(verify_record(&records[i])){
-            printf("Record %d is valid.\n", i);
-        } else {
-            printf("Record %d is invalid!\n", i);
-        }
-        printf("Hash: ");
-        for (int j = 0; j < HASH_SIZE; j++) {
-            printf("%02x", records[i].hash[j]);
-        }
-        printf("\n");
-    }
-}
-
-
-int verify_record(const Record* record) {
-    uint8_t test_hash[HASH_SIZE];
-    blake3_hasher hasher;
-    blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, record->nonce, NONCE_SIZE);
-    blake3_hasher_finalize(&hasher, test_hash, HASH_SIZE);
-
-    return memcmp(test_hash, record->hash, HASH_SIZE) == 0;
 }
 
 int compare_records(const void* a, const void* b) {
