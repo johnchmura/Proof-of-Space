@@ -32,7 +32,7 @@ HASH_OUT = hashgen
 
 HASH_VERIFY_OUT = hashverify
 
-LOOKUP_OUT = lookup_build
+LOOKUP_OUT = vault
 
 
 all: $(HASH_OUT) $(HASH_VERIFY_OUT) $(LOOKUP_OUT)

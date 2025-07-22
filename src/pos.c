@@ -25,12 +25,13 @@ Bucket* generate_records(int num_prefix_bytes){
         fprintf(stderr, "Memory allocation failed\n");
         return NULL;
     }
+    blake3_hasher_init(&hasher);
 
     for (int i=0; i < NUM_RECORDS; i++) {
         uint8_t hash[HASH_SIZE];
         Record record;
         
-        blake3_hasher_init(&hasher);
+        blake3_hasher_reset(&hasher);
         blake3_hasher_update(&hasher, nonce, NONCE_SIZE);
 
         blake3_hasher_finalize(&hasher, hash, HASH_SIZE);
@@ -42,9 +43,7 @@ Bucket* generate_records(int num_prefix_bytes){
             prefix = (prefix << 8) | hash[j];
         }
         
-        uint32_t max_prefix = 1 << (num_prefix_bytes * 8);
-        uint32_t range_size = max_prefix / NUM_BUCKETS;
-        bucket_i = prefix / range_size;
+        bucket_i = ((uint64_t)prefix * NUM_BUCKETS) >> (num_prefix_bytes * 8);
 
         if (bucket_i >= NUM_BUCKETS) {
             bucket_i = NUM_BUCKETS - 1;
@@ -126,5 +125,5 @@ int calc_prefix_bytes(size_t num_buckets){
         bits++;
         buckets >>= 1;
     }
-    return (bits + 7) / 8; // Go up if we need more bytes to allow more buckets
+    return (bits + 7) / 8; // round up to needed bytes
 }
