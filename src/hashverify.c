@@ -69,12 +69,13 @@ int main(int argc, char* argv[]) {
         printf("NONCE_SIZE=%dB\n", NONCE_SIZE);
     }
 
-    int total_records = 0;
+    uint64_t total_records = 0;
 
     if((total_records = verify_hashes_file(filename, 1000, verify_hashes, num_records_head)) < 0){
         perror("Failed to verify hashes from file.");
         return 1;
     }
+    printf("Total records: %zu\n", total_records);
 
     printf("Hashes successfully verified.\n");
 
@@ -89,97 +90,124 @@ int main(int argc, char* argv[]) {
 int verify_hashes_file(const char* filename, size_t bucket_batch_size, bool verify_hashes, size_t num_from_head) {
 
     FILE* file = fopen(filename, "rb");
-
     if (file == NULL) {
         perror("Failed to open the file.");
         return -1;
     }
-    
+
     const size_t record_size = NONCE_SIZE + HASH_SIZE;
-    const size_t bucket_size = sizeof(Bucket);
-    
+    const size_t bucket_size = 2 + MAX_RECORDS_PER_BUCKET * record_size;
+    const size_t records_per_full_file = NUM_BUCKETS * MAX_RECORDS_PER_BUCKET;
+
     Record prev;
     bool has_prev = false;
 
     size_t print_head_left = num_from_head;
     uint64_t total_records = 0;
+    size_t batch_idx = 0;
 
-    for( int i = 0; i < NUM_BUCKETS; i += bucket_batch_size){
-        size_t current_batch_size = (i + bucket_batch_size < NUM_BUCKETS) ? bucket_batch_size : (NUM_BUCKETS - i);
-        size_t num_bytes = current_batch_size * bucket_size;
+    while (1) {
+        size_t bucket_offset = batch_idx * NUM_BUCKETS;
+        bool found_any = false;
 
-        if (fseek(file, i * bucket_size, SEEK_SET) != 0) {
-            perror("Failed to seek.");
-            fclose(file);
-            return -1;
-        }
+        for (int i = 0; i < NUM_BUCKETS; i += bucket_batch_size) {
+            size_t global_bucket_index = bucket_offset + i;
+            size_t current_batch_size = (i + bucket_batch_size < NUM_BUCKETS) ? bucket_batch_size : (NUM_BUCKETS - i);
+            size_t num_bytes = current_batch_size * bucket_size;
 
-        uint8_t* buffer = malloc(num_bytes);
-
-        if (buffer == NULL) {
-            fprintf(stderr, "Memory allocation failed.\n");
-            fclose(file);
-            return -1;
-        }
-
-        if (fread(buffer, 1, num_bytes, file) != num_bytes) {
-            perror("Failed to read records from file.");
-            free(buffer);
-            fclose(file);
-            return -1;
-        }
-
-        for (size_t j = 0; j < current_batch_size; j++) {
-            uint8_t* bucket_pt = buffer + j * bucket_size;
-            uint16_t record_count = bucket_pt[0] | (bucket_pt[1] << 8);
-
-            if (record_count == 0) {
-                continue;
+            if (fseek(file, global_bucket_index * bucket_size, SEEK_SET) != 0) {
+                perror("Failed to seek.");
+                fclose(file);
+                return -1;
             }
 
-            Record* records = (Record*)(bucket_pt + 2);
+            uint8_t* buffer = malloc(num_bytes);
+            if (buffer == NULL) {
+                fprintf(stderr, "Memory allocation failed.\n");
+                fclose(file);
+                return -1;
+            }
 
-            for (int r = 0; r < record_count; r++) {
-                if (print_head_left > 0) {
-                    print_record(&records[r], total_records);
-                    print_head_left--;
+            size_t bytes_read = fread(buffer, 1, num_bytes, file);
+            if (bytes_read == 0) {
+                // EOF reached
+                free(buffer);
+                fclose(file);
+                return total_records;
+            }
+
+            if (bytes_read != num_bytes) {
+                if (feof(file)) {
+                    num_bytes = bytes_read;
+                } else {
+                    perror("Failed to read records from file.");
+                    free(buffer);
+                    fclose(file);
+                    return -1;
                 }
+            }
 
-                if (verify_hashes) {
-                    if (!verify_hash(&records[r])) {
-                        fprintf(stderr, "Hash verification failed for record %d in bucket %zu.\n", r, i + j);
+            for (size_t j = 0; j < current_batch_size; j++) {
+                size_t local_offset = j * bucket_size;
+                if (local_offset + 2 > num_bytes) break;
+
+                uint8_t* bucket_pt = buffer + local_offset;
+                uint16_t record_count = bucket_pt[0] | (bucket_pt[1] << 8);
+
+                if (record_count == 0) continue;
+                if (local_offset + 2 + record_count * record_size > num_bytes) break;
+
+                Record* records = (Record*)(bucket_pt + 2);
+                found_any = true;
+
+                for (int r = 0; r < record_count; r++) {
+                    if (print_head_left > 0) {
+                        print_record(&records[r], total_records);
+                        print_head_left--;
+                    }
+
+                    if (verify_hashes) {
+                        if (!verify_hash(&records[r])) {
+                            fprintf(stderr, "Hash verification failed for record %d in bucket %zu.\n", r, global_bucket_index + j);
+                            free(buffer);
+                            fclose(file);
+                            return -1;
+                        }
+                    }
+
+                    if (has_prev && r == 0 && memcmp(prev.hash, records[r].hash, HASH_SIZE) > 0) {
+                        fprintf(stderr, "Records in bucket %zu are not sorted by hash!\n", global_bucket_index + j);
                         free(buffer);
                         fclose(file);
                         return -1;
                     }
+
+                    if (r > 0 && memcmp(records[r - 1].hash, records[r].hash, HASH_SIZE) > 0) {
+                        fprintf(stderr, "Records in bucket %zu are not sorted by hash!\n", global_bucket_index + j);
+                        free(buffer);
+                        fclose(file);
+                        return -1;
+                    }
+
+                    total_records++;
                 }
 
-                if (has_prev && r == 0 && memcmp(prev.hash, records[r].hash, HASH_SIZE) > 0) {
-                    fprintf(stderr, "Records in bucket %zu are not sorted by hash!\n", i + j);
-                    free(buffer);
-                    fclose(file);
-                    return -1;
+                if (record_count > 0) {
+                    prev = records[record_count - 1];
+                    has_prev = true;
                 }
-
-
-                if (r > 0 && memcmp(records[r-1].hash, records[r].hash, HASH_SIZE) > 0) {
-                    fprintf(stderr, "Records in bucket %zu are not sorted by hash!\n", i + j);
-                    free(buffer);
-                    fclose(file);
-                    return -1;
-                }
-                total_records++;
             }
 
-            if (record_count > 0) {
-                prev = records[record_count - 1];
-                has_prev = true;
-            }
+            free(buffer);
         }
 
-        free(buffer);
+        if (!found_any) {
+            break;
+        }
+
+        batch_idx++;
     }
-    printf("Total records: %zu\n", total_records);
+
     fclose(file);
     return total_records;
 }
@@ -245,8 +273,8 @@ void print_tail_records(const char* filename, size_t record_ct, size_t total_rec
         uint16_t record_count = header[0] | (header[1] << 8);
         if (record_count == 0) continue;
 
-        Record records[MAX_RECORDS_PER_BUCKET];
-        if (fread(records, sizeof(Record), record_count, file) != record_count) {
+        Record *records = malloc(record_count * sizeof(Record));
+        if (fread(records, record_size, record_count, file) != record_count) {
             perror("Failed to read records from bucket");
             break;
         }
@@ -256,6 +284,8 @@ void print_tail_records(const char* filename, size_t record_ct, size_t total_rec
             print_record(&records[r], byte_offset);
             record_ct--;
         }
+        free(records);
+
     }
 
     fclose(file);

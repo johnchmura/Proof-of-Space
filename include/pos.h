@@ -24,7 +24,7 @@ typedef struct {
     uint16_t record_count;
 } Bucket;
 
-Bucket* generate_records(int num_prefix_bytes);
+void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes,Bucket* buckets);
 
 int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename);
 
@@ -33,6 +33,7 @@ void increment_nonce(uint8_t *nonce, size_t nonce_size);
 int compare_records(const void* a, const void* b);
 void sort_records(Bucket* buckets, size_t num_buckets);
 
+int calc_max_records_per_bucket(size_t memory_mb);
 int calc_prefix_bytes(size_t num_buckets);
 
 #endif

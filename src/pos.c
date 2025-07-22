@@ -15,42 +15,40 @@ void increment_nonce(uint8_t *nonce, size_t nonce_size){
     }
 }
 
-Bucket* generate_records(int num_prefix_bytes){
-
+void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucket* buckets) {
     blake3_hasher hasher;
-    Bucket* buckets = calloc(NUM_BUCKETS, sizeof(Bucket));
     uint8_t* nonce = malloc(NONCE_SIZE);
+    size_t records_batch = NUM_BUCKETS * MAX_RECORDS_PER_BUCKET;
 
-    if (buckets == NULL || nonce == NULL) {
+    if (nonce == NULL) {
         fprintf(stderr, "Memory allocation failed\n");
-        return NULL;
+        return;
     }
+
+    for (size_t i = 0; i < NUM_BUCKETS; i++) {
+        buckets[i].record_count = 0;
+    }
+
+    memcpy(nonce, starting_nonce, NONCE_SIZE);
     blake3_hasher_init(&hasher);
 
-    for (int i=0; i < NUM_RECORDS; i++) {
+    for (int i = 0; i < records_batch; i++) {
         uint8_t hash[HASH_SIZE];
         Record record;
-        
+
         blake3_hasher_reset(&hasher);
         blake3_hasher_update(&hasher, nonce, NONCE_SIZE);
-
         blake3_hasher_finalize(&hasher, hash, HASH_SIZE);
 
         uint32_t prefix = 0;
-        uint32_t bucket_i = 0;
-
         for (int j = 0; j < num_prefix_bytes; j++) {
             prefix = (prefix << 8) | hash[j];
         }
-        
-        bucket_i = ((uint64_t)prefix * NUM_BUCKETS) >> (num_prefix_bytes * 8);
 
-        if (bucket_i >= NUM_BUCKETS) {
-            bucket_i = NUM_BUCKETS - 1;
-        }
+        uint32_t bucket_i = ((uint64_t)prefix * NUM_BUCKETS) >> (num_prefix_bytes * 8);
+        if (bucket_i >= NUM_BUCKETS) bucket_i = NUM_BUCKETS - 1;
 
         Bucket* bucket = &buckets[bucket_i];
-
         if (bucket->record_count < MAX_RECORDS_PER_BUCKET) {
             memcpy(record.hash, hash, HASH_SIZE);
             memcpy(record.nonce, nonce, NONCE_SIZE);
@@ -60,13 +58,12 @@ Bucket* generate_records(int num_prefix_bytes){
         increment_nonce(nonce, NONCE_SIZE);
     }
 
-
     free(nonce);
-    return buckets;
 }
 
+
 int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename) {
-    FILE* file = fopen(filename, "wb");
+    FILE* file = fopen(filename, "ab");
     
     if (!file) {
         perror("Failed to open the file.");
@@ -104,6 +101,7 @@ int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename) {
     fclose(file);
     return 0;
 }
+
 
 int compare_records(const void* a, const void* b) {
     const Record* record_a = (const Record*)a;

@@ -97,6 +97,7 @@ int main(int argc, char* argv[]) {
         }
         free(record);
     }
+
     fclose(file);
     
     clock_gettime(CLOCK_MONOTONIC, &end_time);

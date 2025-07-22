@@ -109,31 +109,62 @@ int main(int argc, char* argv[]) {
     }
 
     int num_prefix_bytes = calc_prefix_bytes(NUM_BUCKETS);
-    Bucket* buckets = generate_records(num_prefix_bytes);
 
-    printf("Hashes and nonces successfully generated. Starting sorting...\n");
+    int mb_per_batch = (sizeof(Bucket) * NUM_BUCKETS) / (1024 * 1024);
 
-    sort_records(buckets, NUM_BUCKETS);
+    if (mb_per_batch > memory_mb){
+        printf("Too much memory per bucket dump.\n");
+        return 1;
+    }
+    uint8_t nonce[NONCE_SIZE] = {0};
+    size_t records_generated = 0;
+    size_t records_per_batch = NUM_BUCKETS * MAX_RECORDS_PER_BUCKET;
 
-    printf("Sorting completed. Verifying records...\n");
-    
-    if (buckets == NULL) {
-        fprintf(stderr, "Failed to generate records\n");
-        free(buckets);
+    FILE* out = fopen(filename, "wb");
+    if (!out) {
+        perror("Failed to open output file");
+        return 1;
+    }
+    fclose(out);
+
+    Bucket* buckets = calloc(NUM_BUCKETS, sizeof(Bucket));
+
+    if (!buckets) {
+        fprintf(stderr, "Failed to allocate memory for buckets\n");
         return 1;
     }
 
-    printf("Generated records successfully\n");
+    while (records_generated < NUM_RECORDS) {
+        size_t this_batch = records_per_batch;
+        if (NUM_RECORDS - records_generated < this_batch){
+            this_batch = NUM_RECORDS - records_generated;
+        }
 
-    printf("Dumping buckets to file...\n");
-    if (dump_buckets(buckets, NUM_BUCKETS, filename) != 0) {
-        perror("Failed to dump buckets to file.");
-        free(buckets);
-        return 1;
+        if (debug) {
+            printf("Generating batch at nonce: ");
+            for (int i = 0; i < NONCE_SIZE; ++i) printf("%02x", nonce[i]);
+            printf(" (batch size: %zu)\n", this_batch);
+        }
+
+        generate_records(nonce, num_prefix_bytes, buckets);
+
+        sort_records(buckets, NUM_BUCKETS);
+
+        for (size_t i = 0; i < this_batch; ++i) {
+            increment_nonce(nonce, NONCE_SIZE);
+        }
+
+        if (dump_buckets(buckets, NUM_BUCKETS, filename) != 0) {
+            fprintf(stderr, "Failed to dump records\n");
+            free(buckets);
+            return 1;
+        }
+
+        records_generated += this_batch;
+        printf("Progress: %zu / %d records done\n", records_generated, NUM_RECORDS);
     }
-    printf("Buckets dumped successfully.\n");
-
-    free(buckets);
-    return 0;
-}
+        free(buckets);
+        printf("Generated records successfully\n");
+        return 0;
+    }
 
