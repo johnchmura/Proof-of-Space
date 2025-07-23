@@ -14,6 +14,8 @@
 #define NUM_BUCKETS 67100 // 67100 buckets at 1000 records is about a GB of memory
 #define MAX_RECORDS_PER_BUCKET 1000
 
+#define NUM_BATCHES (NUM_RECORDS + NUM_BUCKETS * MAX_RECORDS_PER_BUCKET - 1) / (NUM_BUCKETS * MAX_RECORDS_PER_BUCKET)
+
 typedef struct { //total 16 bytes 
     uint8_t hash[HASH_SIZE]; // hash value as byte array 
     uint8_t nonce[NONCE_SIZE]; // Nonce value as byte array 
@@ -24,7 +26,7 @@ typedef struct {
     uint16_t record_count;
 } Bucket;
 
-void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes,Bucket* buckets);
+void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucket* buckets, size_t records_batch, double* last_print, size_t records_generated);
 
 int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename);
 

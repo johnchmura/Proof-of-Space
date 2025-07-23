@@ -38,13 +38,13 @@ LOOKUP_OUT = vault
 all: $(HASH_OUT) $(HASH_VERIFY_OUT) $(LOOKUP_OUT)
 
 $(HASH_OUT): $(HASH_SRC)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) -fopenmp -O2 $(CFLAGS) -o $@ $^
 
 $(HASH_VERIFY_OUT): $(HASH_VERIFY_SRC)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) -fopenmp $(CFLAGS) -o $@ $^
 
 $(LOOKUP_OUT): $(LOOKUP_SRC)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) -fopenmp $(CFLAGS) -o $@ $^
 
 run-hashgen: $(HASH_OUT)
 	./$(HASH_OUT)

@@ -3,6 +3,7 @@
         "blake3.h": "c",
         "stdlib.h": "c",
         "stdio.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "stdbool.h": "c"
     }
 }

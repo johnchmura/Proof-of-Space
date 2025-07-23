@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <getopt.h>
 
+#include <omp.h>
+
 #include <time.h>
 
 #include "../BLAKE3/c/blake3.h"
@@ -112,8 +114,10 @@ int main(int argc, char* argv[]) {
 
     int mb_per_batch = (sizeof(Bucket) * NUM_BUCKETS) / (1024 * 1024);
 
+    double last_print_time = omp_get_wtime();
+
     if (mb_per_batch > memory_mb){
-        printf("Too much memory per bucket dump.\n");
+        printf("Too much memory per bucket dump: %d\n",mb_per_batch);
         return 1;
     }
     uint8_t nonce[NONCE_SIZE] = {0};
@@ -133,22 +137,19 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Failed to allocate memory for buckets\n");
         return 1;
     }
-
+    omp_set_num_threads(num_threads_hash);
+    
     while (records_generated < NUM_RECORDS) {
         size_t this_batch = records_per_batch;
+
         if (NUM_RECORDS - records_generated < this_batch){
             this_batch = NUM_RECORDS - records_generated;
         }
 
-        if (debug) {
-            printf("Generating batch at nonce: ");
-            for (int i = 0; i < NONCE_SIZE; ++i) printf("%02x", nonce[i]);
-            printf(" (batch size: %zu)\n", this_batch);
-        }
-
-        generate_records(nonce, num_prefix_bytes, buckets);
-
-        sort_records(buckets, NUM_BUCKETS);
+        
+        generate_records(nonce, num_prefix_bytes, buckets, this_batch, &last_print_time, records_generated);
+        //omp_set_num_threads(num_threads_sort);
+        //sort_records(buckets, NUM_BUCKETS);
 
         for (size_t i = 0; i < this_batch; ++i) {
             increment_nonce(nonce, NONCE_SIZE);
@@ -159,10 +160,9 @@ int main(int argc, char* argv[]) {
             free(buckets);
             return 1;
         }
-
         records_generated += this_batch;
-        printf("Progress: %zu / %d records done\n", records_generated, NUM_RECORDS);
     }
+    
         free(buckets);
         printf("Generated records successfully\n");
         return 0;

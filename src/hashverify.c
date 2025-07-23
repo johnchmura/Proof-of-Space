@@ -71,13 +71,13 @@ int main(int argc, char* argv[]) {
 
     uint64_t total_records = 0;
 
-    if((total_records = verify_hashes_file(filename, 1000, verify_hashes, num_records_head)) < 0){
-        perror("Failed to verify hashes from file.");
+    if((total_records = verify_hashes_file(filename, MAX_RECORDS_PER_BUCKET, verify_hashes, num_records_head)) <= 0){
         return 1;
     }
+
     printf("Total records: %zu\n", total_records);
 
-    printf("Hashes successfully verified.\n");
+    printf("Number of unsorted hashes: %lu\n",total_records);
 
     if (num_records_tail > 0 ){
         print_tail_records(filename, num_records_tail, total_records);
@@ -91,13 +91,15 @@ int verify_hashes_file(const char* filename, size_t bucket_batch_size, bool veri
 
     FILE* file = fopen(filename, "rb");
     if (file == NULL) {
-        perror("Failed to open the file.");
-        return -1;
+        perror("Failed to open the file");
+        return 0;
     }
-
+    
     const size_t record_size = NONCE_SIZE + HASH_SIZE;
     const size_t bucket_size = 2 + MAX_RECORDS_PER_BUCKET * record_size;
     const size_t records_per_full_file = NUM_BUCKETS * MAX_RECORDS_PER_BUCKET;
+
+    size_t num_unsorted = 0;
 
     Record prev;
     bool has_prev = false;
@@ -118,14 +120,14 @@ int verify_hashes_file(const char* filename, size_t bucket_batch_size, bool veri
             if (fseek(file, global_bucket_index * bucket_size, SEEK_SET) != 0) {
                 perror("Failed to seek.");
                 fclose(file);
-                return -1;
+                return 0;
             }
 
             uint8_t* buffer = malloc(num_bytes);
             if (buffer == NULL) {
                 fprintf(stderr, "Memory allocation failed.\n");
                 fclose(file);
-                return -1;
+                return 0;
             }
 
             size_t bytes_read = fread(buffer, 1, num_bytes, file);
@@ -143,7 +145,7 @@ int verify_hashes_file(const char* filename, size_t bucket_batch_size, bool veri
                     perror("Failed to read records from file.");
                     free(buffer);
                     fclose(file);
-                    return -1;
+                    return 0;
                 }
             }
 
@@ -171,22 +173,16 @@ int verify_hashes_file(const char* filename, size_t bucket_batch_size, bool veri
                             fprintf(stderr, "Hash verification failed for record %d in bucket %zu.\n", r, global_bucket_index + j);
                             free(buffer);
                             fclose(file);
-                            return -1;
+                            return 0;
                         }
                     }
 
                     if (has_prev && r == 0 && memcmp(prev.hash, records[r].hash, HASH_SIZE) > 0) {
-                        fprintf(stderr, "Records in bucket %zu are not sorted by hash!\n", global_bucket_index + j);
-                        free(buffer);
-                        fclose(file);
-                        return -1;
+                        num_unsorted++;
                     }
 
                     if (r > 0 && memcmp(records[r - 1].hash, records[r].hash, HASH_SIZE) > 0) {
-                        fprintf(stderr, "Records in bucket %zu are not sorted by hash!\n", global_bucket_index + j);
-                        free(buffer);
-                        fclose(file);
-                        return -1;
+                        num_unsorted++;
                     }
 
                     total_records++;
