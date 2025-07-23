@@ -163,9 +163,10 @@ int main(int argc, char* argv[]) {
         records_generated += this_batch;
     }
 
+        free(buckets);
+        
         merge_and_sort_buckets(TEMP_FILE,filename,num_threads_sort);
     
-        free(buckets);
         double total_time = omp_get_wtime() - start_time;
         double mhps = (NUM_RECORDS / 1e6) / total_time;
         double mbps = ((NUM_RECORDS * sizeof(Record)) / 1e6) / total_time;
