@@ -120,11 +120,12 @@ int main(int argc, char* argv[]) {
         printf("Too much memory per bucket dump: %d\n",mb_per_batch);
         return 1;
     }
+    
     uint8_t nonce[NONCE_SIZE] = {0};
     size_t records_generated = 0;
     size_t records_per_batch = NUM_BUCKETS * MAX_RECORDS_PER_BUCKET;
 
-    FILE* out = fopen(filename, "wb");
+    FILE* out = fopen(TEMP_FILE, "wb");
     if (!out) {
         perror("Failed to open output file");
         return 1;
@@ -137,6 +138,7 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Failed to allocate memory for buckets\n");
         return 1;
     }
+
     omp_set_num_threads(num_threads_hash);
     
     while (records_generated < NUM_RECORDS) {
@@ -156,7 +158,7 @@ int main(int argc, char* argv[]) {
             increment_nonce(nonce, NONCE_SIZE);
         }
 
-        if (dump_buckets(buckets, NUM_BUCKETS, filename) != 0) {
+        if (dump_buckets(buckets, NUM_BUCKETS, TEMP_FILE) != 0) {
             fprintf(stderr, "Failed to dump records\n");
             free(buckets);
             return 1;
@@ -164,7 +166,7 @@ int main(int argc, char* argv[]) {
         records_generated += this_batch;
     }
 
-        merge_and_sort_buckets("data.bin","data2.bin");
+        merge_and_sort_buckets(TEMP_FILE,filename,num_threads_sort);
     
         free(buckets);
         printf("Generated records successfully\n");

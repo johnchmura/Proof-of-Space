@@ -95,7 +95,7 @@ int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes,
     size_t total_records = 0;
     size_t num_unsorted = 0;
     size_t head_printed = 0;
-
+    size_t num_failed = 0;
     const size_t record_size = sizeof(Record);
 
     for (size_t bucket = 0; bucket < NUM_BUCKETS; bucket++) {
@@ -127,10 +127,7 @@ int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes,
             }
 
             if (verify_hashes && !verify_hash(&records[i])) {
-                fprintf(stderr, "Hash verification failed at global index %zu (bucket %zu, index %zu)\n", total_records + i, bucket, i);
-                free(records);
-                fclose(file);
-                return 0;
+                num_failed++;
             }
 
             if (i > 0 && memcmp(records[i - 1].hash, records[i].hash, HASH_SIZE) > 0) {
@@ -143,13 +140,8 @@ int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes,
     }
 
     fclose(file);
-
-    if (num_unsorted > 0) {
-        printf("Number of unsorted hashes: %zu\n", num_unsorted);
-    } else {
-        printf("All hashes are in correct order.\n");
-    }
-
+    if (verify_hashes) printf("Number of failed verifications: %zu\n", num_failed);
+    printf("Number of unsorted hashes: %zu\n", num_unsorted);
     return total_records;
 }
 
