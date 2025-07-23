@@ -114,8 +114,8 @@ int main(int argc, char* argv[]) {
 
     int mb_per_batch = (sizeof(Bucket) * NUM_BUCKETS) / (1024 * 1024);
 
+    double start_time = omp_get_wtime();
     double last_print_time = omp_get_wtime();
-
     if (mb_per_batch > memory_mb){
         printf("Too much memory per bucket dump: %d\n",mb_per_batch);
         return 1;
@@ -151,9 +151,6 @@ int main(int argc, char* argv[]) {
         
         generate_records(nonce, num_prefix_bytes, buckets, this_batch, &last_print_time, records_generated);
 
-        //omp_set_num_threads(num_threads_sort);
-        //sort_records(buckets, NUM_BUCKETS);
-
         for (size_t i = 0; i < this_batch; ++i) {
             increment_nonce(nonce, NONCE_SIZE);
         }
@@ -169,7 +166,12 @@ int main(int argc, char* argv[]) {
         merge_and_sort_buckets(TEMP_FILE,filename,num_threads_sort);
     
         free(buckets);
-        printf("Generated records successfully\n");
+        double total_time = omp_get_wtime() - start_time;
+        double mhps = (NUM_RECORDS / 1e6) / total_time;
+        double mbps = ((NUM_RECORDS * sizeof(Record)) / 1e6) / total_time;
+
+        printf("Completed %d MB file %s in %.2f seconds : %.2f MH/s %.2f MB/s\n", file_size_mb, filename, total_time, mhps, mbps);
+
         return 0;
     }
 

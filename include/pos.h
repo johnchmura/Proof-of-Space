@@ -6,12 +6,12 @@
 
 #define HASH_SIZE 10
 #define NONCE_SIZE 6
-#define K 27ULL
+#define K 26ULL
 #define NUM_RECORDS (1ULL << K)
 #define TEMP_FILE "temp.bin"
 
-#define NUM_BUCKETS 67100 // 67100 buckets at 1000 records is about a GB of memory
-#define MAX_RECORDS_PER_BUCKET 1000
+#define NUM_BUCKETS 6710 // 67100 buckets at 1000 records is about a GB of memory
+#define MAX_RECORDS_PER_BUCKET 100
 
 #define PRINT_TIME 0.5
 

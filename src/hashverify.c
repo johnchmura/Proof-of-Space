@@ -181,7 +181,8 @@ void print_record(const Record* record, size_t record_ct) {
 }
 
 void print_tail_records(const char* filename, size_t record_ct, size_t total_records) {
-    if (record_ct == 0) return;
+    if (record_ct == 0 || total_records == 0) return;
+    if (record_ct > total_records) record_ct = total_records;
 
     FILE* file = fopen(filename, "rb");
     if (!file) {
@@ -189,39 +190,51 @@ void print_tail_records(const char* filename, size_t record_ct, size_t total_rec
         return;
     }
 
-    const size_t bucket_size = sizeof(Bucket);
     const size_t record_size = sizeof(Record);
+    size_t printed = 0;
+    size_t current_index = 0;
 
-    for (int64_t i = NUM_BUCKETS - 1; i >= 0 && record_ct > 0; i--) {
-        if (fseek(file, i * bucket_size, SEEK_SET) != 0) {
-            perror("Failed to seek to bucket");
-            break;
-        }
-
+    for (size_t i = 0; i < NUM_BUCKETS; i++) {
         uint8_t header[2];
         if (fread(header, 1, 2, file) != 2) {
             perror("Failed to read record count");
             break;
         }
-        uint16_t record_count = header[0] | (header[1] << 8);
-        if (record_count == 0) continue;
 
-        Record *records = malloc(record_count * sizeof(Record));
-        if (fread(records, record_size, record_count, file) != record_count) {
-            perror("Failed to read records from bucket");
+        uint16_t record_count = header[0] | (header[1] << 8);
+        if (record_count == 0) {
+            // Skip empty bucket
+            fseek(file, record_count * record_size, SEEK_CUR);
+            continue;
+        }
+
+        Record* records = malloc(record_count * record_size);
+        if (!records) {
+            fprintf(stderr, "Memory allocation failed\n");
             break;
         }
 
-        for (int r = record_count - 1; r >= 0 && record_ct > 0; r--) {
-            size_t byte_offset = i * bucket_size + 2 + r * record_size;
-            print_record(&records[r], byte_offset);
-            record_ct--;
+        if (fread(records, record_size, record_count, file) != record_count) {
+            perror("Failed to read records");
+            free(records);
+            break;
         }
+
+        for (size_t j = 0; j < record_count; j++) {
+            size_t global_idx = current_index + j;
+            if (global_idx >= total_records - record_ct) {
+                print_record(&records[j], global_idx);
+                printed++;
+                if (printed >= record_ct) break;
+            }
+        }
+
+        current_index += record_count;
         free(records);
 
+        if (printed >= record_ct) break;
     }
 
     fclose(file);
 }
-
 

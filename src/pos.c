@@ -22,6 +22,7 @@ void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucke
     omp_lock_t bucket_locks[NUM_BUCKETS];
 
     size_t total_flushes = NUM_BATCHES * NUM_BUCKETS;
+    
     static double start_time = 0;
     if (start_time == 0) start_time = omp_get_wtime();
     static int print_count = 0;
@@ -85,7 +86,7 @@ void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucke
 
                     print_count++;
                     printf("[%d][HASHGEN]: %.2f%% completed, ETA %.1f seconds, %zu/%zu flushes, %.1f MB/sec\n",
-                        print_count, percent, eta, total_flushes, total_flushes, mb_per_sec);
+                        print_count, percent, eta, total_bucket_flushes, total_flushes, mb_per_sec);
                     fflush(stdout);
                     *last_print = now;
                 }
