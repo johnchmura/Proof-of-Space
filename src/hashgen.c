@@ -148,6 +148,7 @@ int main(int argc, char* argv[]) {
 
         
         generate_records(nonce, num_prefix_bytes, buckets, this_batch, &last_print_time, records_generated);
+
         //omp_set_num_threads(num_threads_sort);
         //sort_records(buckets, NUM_BUCKETS);
 
@@ -162,6 +163,8 @@ int main(int argc, char* argv[]) {
         }
         records_generated += this_batch;
     }
+
+        merge_and_sort_buckets("data.bin","data2.bin");
     
         free(buckets);
         printf("Generated records successfully\n");

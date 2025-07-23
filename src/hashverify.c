@@ -77,8 +77,6 @@ int main(int argc, char* argv[]) {
 
     printf("Total records: %zu\n", total_records);
 
-    printf("Number of unsorted hashes: %lu\n",total_records);
-
     if (num_records_tail > 0 ){
         print_tail_records(filename, num_records_tail, total_records);
     }
@@ -87,124 +85,71 @@ int main(int argc, char* argv[]) {
 }
 
 
-int verify_hashes_file(const char* filename, size_t bucket_batch_size, bool verify_hashes, size_t num_from_head) {
-
+int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes, size_t num_from_head) {
     FILE* file = fopen(filename, "rb");
-    if (file == NULL) {
+    if (!file) {
         perror("Failed to open the file");
         return 0;
     }
-    
-    const size_t record_size = NONCE_SIZE + HASH_SIZE;
-    const size_t bucket_size = 2 + MAX_RECORDS_PER_BUCKET * record_size;
-    const size_t records_per_full_file = NUM_BUCKETS * MAX_RECORDS_PER_BUCKET;
 
+    size_t total_records = 0;
     size_t num_unsorted = 0;
+    size_t head_printed = 0;
 
-    Record prev;
-    bool has_prev = false;
+    const size_t record_size = sizeof(Record);
 
-    size_t print_head_left = num_from_head;
-    uint64_t total_records = 0;
-    size_t batch_idx = 0;
-
-    while (1) {
-        size_t bucket_offset = batch_idx * NUM_BUCKETS;
-        bool found_any = false;
-
-        for (int i = 0; i < NUM_BUCKETS; i += bucket_batch_size) {
-            size_t global_bucket_index = bucket_offset + i;
-            size_t current_batch_size = (i + bucket_batch_size < NUM_BUCKETS) ? bucket_batch_size : (NUM_BUCKETS - i);
-            size_t num_bytes = current_batch_size * bucket_size;
-
-            if (fseek(file, global_bucket_index * bucket_size, SEEK_SET) != 0) {
-                perror("Failed to seek.");
-                fclose(file);
-                return 0;
-            }
-
-            uint8_t* buffer = malloc(num_bytes);
-            if (buffer == NULL) {
-                fprintf(stderr, "Memory allocation failed.\n");
-                fclose(file);
-                return 0;
-            }
-
-            size_t bytes_read = fread(buffer, 1, num_bytes, file);
-            if (bytes_read == 0) {
-                // EOF reached
-                free(buffer);
-                fclose(file);
-                return total_records;
-            }
-
-            if (bytes_read != num_bytes) {
-                if (feof(file)) {
-                    num_bytes = bytes_read;
-                } else {
-                    perror("Failed to read records from file.");
-                    free(buffer);
-                    fclose(file);
-                    return 0;
-                }
-            }
-
-            for (size_t j = 0; j < current_batch_size; j++) {
-                size_t local_offset = j * bucket_size;
-                if (local_offset + 2 > num_bytes) break;
-
-                uint8_t* bucket_pt = buffer + local_offset;
-                uint16_t record_count = bucket_pt[0] | (bucket_pt[1] << 8);
-
-                if (record_count == 0) continue;
-                if (local_offset + 2 + record_count * record_size > num_bytes) break;
-
-                Record* records = (Record*)(bucket_pt + 2);
-                found_any = true;
-
-                for (int r = 0; r < record_count; r++) {
-                    if (print_head_left > 0) {
-                        print_record(&records[r], total_records);
-                        print_head_left--;
-                    }
-
-                    if (verify_hashes) {
-                        if (!verify_hash(&records[r])) {
-                            fprintf(stderr, "Hash verification failed for record %d in bucket %zu.\n", r, global_bucket_index + j);
-                            free(buffer);
-                            fclose(file);
-                            return 0;
-                        }
-                    }
-
-                    if (has_prev && r == 0 && memcmp(prev.hash, records[r].hash, HASH_SIZE) > 0) {
-                        num_unsorted++;
-                    }
-
-                    if (r > 0 && memcmp(records[r - 1].hash, records[r].hash, HASH_SIZE) > 0) {
-                        num_unsorted++;
-                    }
-
-                    total_records++;
-                }
-
-                if (record_count > 0) {
-                    prev = records[record_count - 1];
-                    has_prev = true;
-                }
-            }
-
-            free(buffer);
-        }
-
-        if (!found_any) {
+    for (size_t bucket = 0; bucket < NUM_BUCKETS; bucket++) {
+        uint8_t header[2];
+        if (fread(header, 1, 2, file) != 2) {
+            fprintf(stderr, "Failed to read record count header for bucket %zu\n", bucket);
             break;
         }
 
-        batch_idx++;
+        uint16_t record_count = header[0] | (header[1] << 8);
+        if (record_count == 0) continue;
+
+        Record* records = malloc(record_count * record_size);
+        if (!records) {
+            fprintf(stderr, "Memory allocation failed\n");
+            break;
+        }
+
+        if (fread(records, record_size, record_count, file) != record_count) {
+            fprintf(stderr, "Failed to read %u records from bucket %zu\n", record_count, bucket);
+            free(records);
+            break;
+        }
+
+        for (size_t i = 0; i < record_count; i++) {
+            if (head_printed < num_from_head) {
+                print_record(&records[i], total_records + i);
+                head_printed++;
+            }
+
+            if (verify_hashes && !verify_hash(&records[i])) {
+                fprintf(stderr, "Hash verification failed at global index %zu (bucket %zu, index %zu)\n", total_records + i, bucket, i);
+                free(records);
+                fclose(file);
+                return 0;
+            }
+
+            if (i > 0 && memcmp(records[i - 1].hash, records[i].hash, HASH_SIZE) > 0) {
+                num_unsorted++;
+            }
+        }
+
+        total_records += record_count;
+        free(records);
     }
 
     fclose(file);
+
+    if (num_unsorted > 0) {
+        printf("Number of unsorted hashes: %zu\n", num_unsorted);
+    } else {
+        printf("All hashes are in correct order.\n");
+    }
+
     return total_records;
 }
 
