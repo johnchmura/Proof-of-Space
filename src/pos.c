@@ -170,7 +170,7 @@ void merge_and_sort_buckets(const char* input_file, const char* output_file, int
     double last_print = start_time;
     static int print_count = 0;
 
-    size_t* sorted_count = calloc(1, sizeof(size_t)); // shared counter
+    size_t* sorted_count = calloc(1, sizeof(size_t));
 
     #pragma omp parallel for num_threads(num_threads_sort) schedule(dynamic)
     for (size_t bucket_index = 0; bucket_index < NUM_BUCKETS; bucket_index++) {
@@ -247,8 +247,14 @@ void merge_and_sort_buckets(const char* input_file, const char* output_file, int
         fputc(count & 0xFF, output);
         fputc((count >> 8) & 0xFF, output);
 
-        if (fwrite(records, record_size, count, output) != count) {
-            perror("Failed to write sorted merged records");
+        fwrite(records, record_size, count, output);
+
+        size_t pad_count = max_records_per_bucket - count;
+        if (pad_count > 0) {
+            Record zero = {0};
+            for (size_t j = 0; j < pad_count; j++) {
+                fwrite(&zero, record_size, 1, output);
+            }
         }
 
         free(records);

@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
     for( int i = 0; i < num_searches; i++) {
         uint8_t hash[HASH_SIZE];
 
-        uint8_t* random_hash = generate_random_hash(&hasher);
+        uint8_t* random_hash = generate_random_hash(prefix_bytes);
         if (!random_hash) {
             fprintf(stderr, "Failed to generate random hash\n");
             continue;
@@ -220,30 +220,25 @@ int parse_hex_string(const char* hex_str, uint8_t* out_bytes, size_t byte_len) {
     return 1;
 }
 
-uint8_t* generate_random_hash(blake3_hasher* hasher) {
-    if (!hasher) {
-        fprintf(stderr, "Hasher is NULL\n");
+uint8_t* generate_random_hash(int prefix_bytes) {
+    if (prefix_bytes < 1 || prefix_bytes > HASH_SIZE) {
+        fprintf(stderr, "Invalid prefix length: %d\n", prefix_bytes);
         return NULL;
     }
 
-    uint8_t nonce[NONCE_SIZE];
-    for (size_t i=0; i<NONCE_SIZE; i++) {
-        nonce[i] = rand() && 0xFF;
-    }
-
-    blake3_hasher_reset(hasher);
-    
-    blake3_hasher_update(hasher, nonce, NONCE_SIZE);
-    uint8_t* hash = malloc(HASH_SIZE);
+    uint8_t* hash = calloc(HASH_SIZE, sizeof(uint8_t));
     if (!hash) {
         fprintf(stderr, "Memory allocation failed for hash\n");
         return NULL;
     }
 
-    blake3_hasher_finalize(hasher, hash, HASH_SIZE);
-    
+    for (int i = 0; i < prefix_bytes; i++) {
+        hash[i] = rand() & 0xFF;
+    }
+
     return hash;
 }
+
 
 size_t calc_filesize(const char* filename) {
     FILE* file = fopen(filename, "rb");

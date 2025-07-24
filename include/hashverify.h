@@ -8,7 +8,7 @@
 
 #include "../include/pos.h"
 
-int verify_hashes_file(const char* filename, size_t bucket_batch_size, bool verify_hashes, size_t num_from_head);
+int verify_hashes_file(const char* filename, bool verify_hashes, size_t num_from_head);
 int verify_random_hashes(const char* filename, size_t count);
 int verify_hash(const Record* record);
 

@@ -14,7 +14,7 @@ int parse_hex_string(const char* hex_str, uint8_t* out_bytes, size_t byte_len);
 
 size_t calc_filesize(const char* filename);
 
-uint8_t* generate_random_hash(blake3_hasher* hasher);
+uint8_t* generate_random_hash(int prefix_bytes);
 
 void print_records(const Record* records, size_t count);
 

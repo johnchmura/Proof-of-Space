@@ -87,7 +87,7 @@ int main(int argc, char* argv[]) {
         print_tail_records(filename, num_records_tail, total_records);
     }
 
-    if(verify_hashes && ((total_records = verify_hashes_file(filename, MAX_RECORDS_PER_BUCKET, verify_hashes, num_records_head)) <= 0)){
+    if(verify_hashes && ((total_records = verify_hashes_file(filename, verify_hashes, num_records_head)) <= 0)){
         fprintf(stderr,"Something failed in verifying files");
         return 1;
     }
@@ -114,7 +114,7 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes, size_t num_from_head) {
+int verify_hashes_file(const char* filename, bool verify_hashes, size_t num_from_head) {
     FILE* file = fopen(filename, "rb");
     if (!file) {
         perror("Failed to open the file");
@@ -123,7 +123,6 @@ int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes,
 
     size_t total_records = 0;
     num_unsorted = 0;
-
     const size_t record_size = sizeof(Record);
 
     double start_time = omp_get_wtime();
@@ -138,26 +137,27 @@ int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes,
         }
 
         uint16_t record_count = header[0] | (header[1] << 8);
-        if (record_count == 0) continue;
+        if (record_count > RECORDS_BIG_BUCKET) {
+            fprintf(stderr, "Invalid record count %u in bucket %zu\n", record_count, bucket);
+            break;
+        }
 
-        Record* records = malloc(record_count * record_size);
+        Record* records = malloc(RECORDS_BIG_BUCKET * record_size);
         if (!records) {
             fprintf(stderr, "Memory allocation failed\n");
             break;
         }
 
-        if (fread(records, record_size, record_count, file) != record_count) {
-            fprintf(stderr, "Failed to read %u records from bucket %zu\n", record_count, bucket);
+        if (fread(records, record_size, RECORDS_BIG_BUCKET, file) != RECORDS_BIG_BUCKET) {
+            fprintf(stderr, "Failed to read full bucket %zu\n", bucket);
             free(records);
             break;
         }
 
-        for (size_t i = 0; i < record_count; i++) {
-
-            if (i > 0 && memcmp(records[i - 1].hash, records[i].hash, HASH_SIZE) > 0) {
+        for (size_t i = 1; i < record_count; i++) {
+            if (memcmp(records[i - 1].hash, records[i].hash, HASH_SIZE) > 0) {
                 num_unsorted++;
             }
-
         }
 
         total_records += record_count;
@@ -171,7 +171,7 @@ int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes,
             double eta = elapsed * (NUM_RECORDS - total_records) / (total_records + 1e-5);
 
             print_count++;
-            printf("[%.3f][VERIFY]: %.2f%% completed, ETA %.1f seconds\n",elapsed, percent, eta);
+            printf("[%.3f][VERIFY]: %.2f%% completed, ETA %.1f seconds\n", elapsed, percent, eta);
             fflush(stdout);
             last_print_time = now;
         }
@@ -180,6 +180,8 @@ int verify_hashes_file(const char* filename, size_t _unused, bool verify_hashes,
     fclose(file);
     return total_records;
 }
+
+
 
 int verify_random_hashes(const char* filename, size_t count) {
     if (count == 0) return -1;
@@ -212,8 +214,14 @@ int verify_random_hashes(const char* filename, size_t count) {
         }
 
         uint16_t count_in_bucket = header[0] | (header[1] << 8);
+        if (count_in_bucket > RECORDS_BIG_BUCKET) {
+            fprintf(stderr, "Invalid count %u in bucket %zu\n", count_in_bucket, i);
+            free(bucket_offsets); free(bucket_counts); fclose(file);
+            return -1;
+        }
+
         bucket_counts[i] = count_in_bucket;
-        offset += 2 + count_in_bucket * record_size;
+        offset += 2 + RECORDS_BIG_BUCKET * record_size;
         total_records += count_in_bucket;
     }
 
@@ -244,14 +252,14 @@ int verify_random_hashes(const char* filename, size_t count) {
             break;
         }
 
-        Record* records = malloc(bucket_count * record_size);
+        Record* records = malloc(RECORDS_BIG_BUCKET * record_size);
         if (!records) {
             fprintf(stderr, "Memory allocation failed\n");
             break;
         }
 
-        if (fread(records, record_size, bucket_count, file) != bucket_count) {
-            perror("Failed to read bucket data");
+        if (fread(records, record_size, RECORDS_BIG_BUCKET, file) != RECORDS_BIG_BUCKET) {
+            perror("Failed to read full bucket");
             free(records);
             break;
         }
@@ -277,6 +285,7 @@ int verify_random_hashes(const char* filename, size_t count) {
 
     return failed;
 }
+
 
 
 int verify_hash(const Record* record) {
@@ -334,9 +343,9 @@ void print_head_records(const char* filename, size_t record_ct) {
         }
 
         uint16_t record_count = header[0] | (header[1] << 8);
-        if (record_count == 0) {
-            fseek(file, record_count * record_size, SEEK_CUR);
-            continue;
+        if (record_count > RECORDS_BIG_BUCKET) {
+            fprintf(stderr, "Invalid record count in bucket %zu\n", i);
+            break;
         }
 
         Record* records = malloc(record_count * record_size);
@@ -357,10 +366,14 @@ void print_head_records(const char* filename, size_t record_ct) {
         }
 
         free(records);
+
+        size_t pad_count = RECORDS_BIG_BUCKET - record_count;
+        fseek(file, pad_count * record_size, SEEK_CUR);
     }
 
     fclose(file);
 }
+
 
 void print_tail_records(const char* filename, size_t record_ct, size_t total_records) {
     if (record_ct == 0 || total_records == 0) return;
@@ -376,7 +389,7 @@ void print_tail_records(const char* filename, size_t record_ct, size_t total_rec
     size_t printed = 0;
     size_t current_index = 0;
 
-    for (size_t i = 0; i < NUM_BUCKETS; i++) {
+    for (size_t i = 0; i < NUM_BUCKETS && printed < record_ct; i++) {
         uint8_t header[2];
         if (fread(header, 1, 2, file) != 2) {
             perror("Failed to read record count");
@@ -384,10 +397,9 @@ void print_tail_records(const char* filename, size_t record_ct, size_t total_rec
         }
 
         uint16_t record_count = header[0] | (header[1] << 8);
-        if (record_count == 0) {
-            // Skip empty bucket
-            fseek(file, record_count * record_size, SEEK_CUR);
-            continue;
+        if (record_count > RECORDS_BIG_BUCKET) {
+            fprintf(stderr, "Invalid record count in bucket %zu\n", i);
+            break;
         }
 
         Record* records = malloc(record_count * record_size);
@@ -414,9 +426,11 @@ void print_tail_records(const char* filename, size_t record_ct, size_t total_rec
         current_index += record_count;
         free(records);
 
-        if (printed >= record_ct) break;
+        size_t pad_count = RECORDS_BIG_BUCKET - record_count;
+        fseek(file, pad_count * record_size, SEEK_CUR);
     }
 
     fclose(file);
 }
+
 

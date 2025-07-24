@@ -6,16 +6,19 @@
 
 #define HASH_SIZE 10
 #define NONCE_SIZE 6
-#define K 26ULL
+#define K 27ULL
 #define NUM_RECORDS (1ULL << K)
 #define TEMP_FILE "temp.bin"
 
-#define NUM_BUCKETS 67000 // 67100 buckets at 1000 records is about a GB of memory
+#define NUM_BUCKETS 67109 // 67100 buckets at 1000 records is about a GB of memory
 #define MAX_RECORDS_PER_BUCKET 1000
+
 
 #define PRINT_TIME 0.5
 
 #define NUM_BATCHES ((size_t)(NUM_RECORDS + NUM_BUCKETS * MAX_RECORDS_PER_BUCKET - 1) / (NUM_BUCKETS * MAX_RECORDS_PER_BUCKET))
+
+#define RECORDS_BIG_BUCKET (NUM_BATCHES * MAX_RECORDS_PER_BUCKET)
 
 typedef struct { //total 16 bytes 
     uint8_t hash[HASH_SIZE]; // hash value as byte array 
