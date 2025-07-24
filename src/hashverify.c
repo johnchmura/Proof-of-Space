@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
         print_head_records(filename, num_records_head);
     }
     if (num_records_tail > 0 ){
-        print_tail_records(filename, num_records_tail, total_records);
+        print_tail_records(filename, num_records_tail);
     }
 
     if(verify_hashes && ((total_records = verify_hashes_file(filename, verify_hashes, num_records_head)) <= 0)){
@@ -286,8 +286,6 @@ int verify_random_hashes(const char* filename, size_t count) {
     return failed;
 }
 
-
-
 int verify_hash(const Record* record) {
     uint8_t test_hash[HASH_SIZE];
     blake3_hasher hasher;
@@ -375,9 +373,9 @@ void print_head_records(const char* filename, size_t record_ct) {
 }
 
 
-void print_tail_records(const char* filename, size_t record_ct, size_t total_records) {
-    if (record_ct == 0 || total_records == 0) return;
-    if (record_ct > total_records) record_ct = total_records;
+void print_tail_records(const char* filename, size_t record_ct) {
+
+    if (record_ct == 0) return;
 
     FILE* file = fopen(filename, "rb");
     if (!file) {
@@ -387,18 +385,24 @@ void print_tail_records(const char* filename, size_t record_ct, size_t total_rec
 
     const size_t record_size = sizeof(Record);
     size_t printed = 0;
-    size_t current_index = 0;
 
-    for (size_t i = 0; i < NUM_BUCKETS && printed < record_ct; i++) {
+    for (ssize_t bucket = NUM_BUCKETS - 1; bucket >= 0 && printed < record_ct; bucket--) {
+        size_t bucket_offset = bucket * (2 + RECORDS_BIG_BUCKET * record_size);
+
+        if (fseek(file, bucket_offset, SEEK_SET) != 0) {
+            perror("Failed to seek to bucket header");
+            break;
+        }
+
         uint8_t header[2];
         if (fread(header, 1, 2, file) != 2) {
-            perror("Failed to read record count");
+            perror("Failed to read bucket header");
             break;
         }
 
         uint16_t record_count = header[0] | (header[1] << 8);
         if (record_count > RECORDS_BIG_BUCKET) {
-            fprintf(stderr, "Invalid record count in bucket %zu\n", i);
+            fprintf(stderr, "Invalid record count in bucket %zu\n", (size_t)bucket);
             break;
         }
 
@@ -409,28 +413,21 @@ void print_tail_records(const char* filename, size_t record_ct, size_t total_rec
         }
 
         if (fread(records, record_size, record_count, file) != record_count) {
-            perror("Failed to read records");
+            perror("Failed to read records from bucket");
             free(records);
             break;
         }
 
-        for (size_t j = 0; j < record_count; j++) {
-            size_t global_idx = current_index + j;
-            if (global_idx >= total_records - record_ct) {
-                print_record(&records[j], global_idx);
-                printed++;
-                if (printed >= record_ct) break;
-            }
+        for (ssize_t j = record_count - 1; j >= 0 && printed < record_ct; j--) {
+            print_record(&records[j], printed);
+            printed++;
         }
 
-        current_index += record_count;
         free(records);
-
-        size_t pad_count = RECORDS_BIG_BUCKET - record_count;
-        fseek(file, pad_count * record_size, SEEK_CUR);
     }
 
     fclose(file);
 }
+
 
 

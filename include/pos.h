@@ -6,7 +6,7 @@
 
 #define HASH_SIZE 10
 #define NONCE_SIZE 6
-#define K 28ULL
+#define K 26ULL
 #define NUM_RECORDS (1ULL << K)
 #define TEMP_FILE "temp.bin"
 

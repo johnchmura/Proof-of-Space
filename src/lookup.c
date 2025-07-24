@@ -109,6 +109,7 @@ int main(int argc, char* argv[]) {
     printf("Time taken: %.4f ms/lookup\n", avg_lookup);
     printf("Throughput: %.2f lookups/s\n", num_searches / (elapsed_time_ms / 1000.0));
 
+    return 0;
 }
 
 Record* search_records(FILE* file, const uint8_t* hash, int num_prefix_bytes, int* num_seeks) {
