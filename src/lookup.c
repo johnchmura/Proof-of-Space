@@ -128,7 +128,7 @@ Record* search_records(FILE* file, const uint8_t* hash, int num_prefix_bytes, in
     int right = record_count - 1;
     while (left <= right) {
         int mid = left + (right - left) / 2;
-        int cmp = memcmp(records[mid].hash, hash, num_prefix_bytes);
+        int cmp = memcmp(records[mid].hash, hash, num_prefix_bytes); //binary search on the big bucket that was pulled into memory
 
         if (cmp == 0) {
             Record* found_record = malloc(sizeof(Record));
@@ -163,12 +163,12 @@ Record* read_bucket(FILE* file, size_t bucket_index, uint16_t* record_count, int
 
     if (num_seeks) {
         (*num_seeks)++;
-    }
+    } 
 
     int start = fgetc(file);
     int end = fgetc(file);
     if (start == EOF || end == EOF) {
-        perror("Failed to read record count");
+        perror("Failed to read record count"); 
         return NULL;
     }
 
@@ -206,7 +206,7 @@ Record* read_bucket(FILE* file, size_t bucket_index, uint16_t* record_count, int
 
 Record* read_bucket_by_hash(FILE* file, const uint8_t* hash, int num_prefix_bytes, uint16_t* record_count, int* num_seeks) {
     uint32_t bucket_i = 0;
-        for (int j = 0; j < num_prefix_bytes; j++) {
+        for (int j = 0; j < num_prefix_bytes; j++) { // convert the prefix into an integer that can be indexed
             bucket_i = (bucket_i << 8) | hash[j];
         }
     bucket_i = ((uint64_t)bucket_i * NUM_BUCKETS) >> (num_prefix_bytes * 8);
@@ -221,7 +221,7 @@ int hexchar_to_int(char c) {
     return -1;
 }
 
-int parse_hex_string(const char* hex_str, uint8_t* out_bytes, size_t byte_len) {
+int parse_hex_string(const char* hex_str, uint8_t* out_bytes, size_t byte_len) { // random helper function used for testing the lookup
     size_t len = strlen(hex_str);
     if (len != byte_len * 2) return 0;
 
@@ -234,7 +234,7 @@ int parse_hex_string(const char* hex_str, uint8_t* out_bytes, size_t byte_len) {
     return 1;
 }
 
-uint8_t* generate_random_hash(int prefix_bytes) {
+uint8_t* generate_random_hash(int prefix_bytes) { //Generates a prefix that can be searched up 
     if (prefix_bytes < 1 || prefix_bytes > HASH_SIZE) {
         fprintf(stderr, "Invalid prefix length: %d\n", prefix_bytes);
         return NULL;

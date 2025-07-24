@@ -16,7 +16,8 @@
 #include "../include/hashverify.h"
 
 bool debug;
-size_t num_unsorted;
+size_t num_unsorted; //Some global variables for making the rest of the logic easier
+
 int main(int argc, char* argv[]) {
 
     char* filename = "buckets.bin";
@@ -86,11 +87,14 @@ int main(int argc, char* argv[]) {
     if (num_records_tail > 0 ){
         print_tail_records(filename, num_records_tail);
     }
-
-    if(verify_hashes && ((total_records = verify_hashes_file(filename, verify_hashes, num_records_head)) <= 0)){
+    ssize_t verified_records;
+    if (verify_hashes) verified_records = verify_hashes_file(filename, verify_hashes);
+    if(verify_hashes && verified_records <= 0){
         fprintf(stderr,"Something failed in verifying files");
         return 1;
     }
+
+    total_records = verified_records;
 
     if(verify_hashes && total_records > 0){
         printf("Total records: %zu\n",total_records);
@@ -114,7 +118,7 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-int verify_hashes_file(const char* filename, bool verify_hashes, size_t num_from_head) {
+ssize_t verify_hashes_file(const char* filename, bool verify_hashes) {
     FILE* file = fopen(filename, "rb");
     if (!file) {
         perror("Failed to open the file");
@@ -129,7 +133,7 @@ int verify_hashes_file(const char* filename, bool verify_hashes, size_t num_from
     double last_print_time = start_time;
     static int print_count = 0;
 
-    for (size_t bucket = 0; bucket < NUM_BUCKETS; bucket++) {
+    for (size_t bucket = 0; bucket < NUM_BUCKETS; bucket++) { // go through each bucket and grab the records to check if they are sorted
         uint8_t header[2];
         if (fread(header, 1, 2, file) != 2) {
             fprintf(stderr, "Failed to read record count header for bucket %zu\n", bucket);
@@ -183,7 +187,7 @@ int verify_hashes_file(const char* filename, bool verify_hashes, size_t num_from
 
 
 
-int verify_random_hashes(const char* filename, size_t count) {
+int verify_random_hashes(const char* filename, size_t count) { 
     if (count == 0) return -1;
 
     FILE* file = fopen(filename, "rb");
@@ -234,7 +238,7 @@ int verify_random_hashes(const char* filename, size_t count) {
     if (count > total_records) count = total_records;
 
     srand(time(NULL));
-    size_t* indices = malloc(count * sizeof(size_t));
+    size_t* indices = malloc(count * sizeof(size_t)); //generate random numbers inside of the actual amount of records range
     for (size_t i = 0; i < count; i++) {
         indices[i] = rand() % total_records;
     }

@@ -1,5 +1,7 @@
+K ?= 26
+
 CC = gcc
-CFLAGS = -Wall -O2 -IBLAKE3/c
+CFLAGS = -Wall -O2 -IBLAKE3/c -DK=$(K)
 
 HASH_SRC = src/hashgen.c src/pos.c \
       BLAKE3/c/blake3.c \

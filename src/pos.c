@@ -100,7 +100,7 @@ void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucke
 }
 
 
-int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename) {
+int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename) { 
     FILE* file = fopen(filename, "ab");
     
     if (!file) {
@@ -108,7 +108,7 @@ int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename) {
         return -1;
     }
     
-    for (size_t i = 0; i < num_buckets; i++) {
+    for (size_t i = 0; i < num_buckets; i++) { //Write the files into memory with the count first. Looking back I probably could have dumped the whole struct, but I wanted to be safe.
         Bucket* bucket = &buckets[i];
 
         uint16_t count = bucket->record_count;
@@ -127,7 +127,7 @@ int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename) {
         size_t padding = MAX_RECORDS_PER_BUCKET - count;
         Record empty_record = {0};
 
-        for (size_t j = 0; j < padding; j++) {
+        for (size_t j = 0; j < padding; j++) { //add padding
             if( fwrite(&empty_record, sizeof(Record), 1, file) != 1) {
                 perror("Failed to write padding records to file.");
                 fclose(file);
@@ -150,6 +150,7 @@ void merge_and_sort_buckets(const char* input_file, const char* output_file, int
     const size_t bucket_size = bucket_header_size + (MAX_RECORDS_PER_BUCKET * record_size);
     const size_t total_batches = NUM_BATCHES;
     const size_t max_records_per_bucket = MAX_RECORDS_PER_BUCKET * total_batches;
+    Record empty_record = {0};
 
     FILE* input = fopen(input_file, "rb");
     if (!input) {
@@ -157,10 +158,19 @@ void merge_and_sort_buckets(const char* input_file, const char* output_file, int
         return;
     }
 
-    Record** all_sorted = calloc(NUM_BUCKETS, sizeof(Record*));
-    uint16_t* record_counts = calloc(NUM_BUCKETS, sizeof(uint16_t));
-    if (!all_sorted || !record_counts) {
-        perror("Failed to allocate output buffers");
+    fseek(input, 0, SEEK_END);
+    long file_size = ftell(input);
+    fseek(input, 0, SEEK_SET);
+    
+    if (file_size != (long)(total_batches * NUM_BUCKETS * bucket_size)) {
+        fprintf(stderr, "Input file size doesn't match expected size\n");
+        fclose(input);
+        return;
+    }
+
+    FILE* output = fopen(output_file, "wb");
+    if (!output) {
+        perror("Failed to open output file");
         fclose(input);
         return;
     }
@@ -170,33 +180,50 @@ void merge_and_sort_buckets(const char* input_file, const char* output_file, int
     double last_print = start_time;
     static int print_count = 0;
 
-    size_t* sorted_count = calloc(1, sizeof(size_t));
+    size_t sorted_count = 0;
 
-    #pragma omp parallel for num_threads(num_threads_sort) schedule(dynamic)
+    #pragma omp parallel for num_threads(num_threads_sort) ordered schedule(static, 1)
     for (size_t bucket_index = 0; bucket_index < NUM_BUCKETS; bucket_index++) {
         Record* buffer = malloc(max_records_per_bucket * sizeof(Record));
         if (!buffer) {
-            fprintf(stderr, "Thread failed to allocate record buffer for bucket %zu\n", bucket_index);
+            fprintf(stderr, "Failed to malloc record buffer for bucket %zu\n", bucket_index);
             continue;
         }
 
         size_t total_records = 0;
 
         for (size_t batch = 0; batch < total_batches; batch++) {
-            size_t offset = (batch * NUM_BUCKETS + bucket_index) * bucket_size;
+            size_t offset = batch * (NUM_BUCKETS * bucket_size) + bucket_index * bucket_size;
+
+            uint8_t count_bytes[2];
+            uint16_t count = 0;
 
             #pragma omp critical(file_read)
             {
-                fseek(input, offset, SEEK_SET);
-                uint8_t count_bytes[2];
-                fread(count_bytes, 1, 2, input);
-                uint16_t count = count_bytes[0] | (count_bytes[1] << 8);
-
-                if (count > MAX_RECORDS_PER_BUCKET) {
-                    fprintf(stderr, "Invalid record count in batch %zu bucket %zu\n", batch, bucket_index);
+                if (fseek(input, offset, SEEK_SET) != 0) {
+                    fprintf(stderr, "Failed to seek to position %zu\n", offset);
+                    count = 0;
+                } else if (fread(count_bytes, 1, 2, input) != 2) {
+                    fprintf(stderr, "Failed to read count for batch %zu bucket %zu\n", batch, bucket_index);
+                    count = 0;
                 } else {
-                    fread(&buffer[total_records], record_size, count, input);
-                    total_records += count;
+                    count = count_bytes[0] | (count_bytes[1] << 8);
+                    
+                    if (count > MAX_RECORDS_PER_BUCKET) {
+                        fprintf(stderr, "Invalid count %u in batch %zu bucket %zu\n", count, batch, bucket_index);
+                        count = 0;
+                    } else if (count > 0) {
+                        if (fread(&buffer[total_records], record_size, count, input) != count) {
+                            fprintf(stderr, "Failed to read records for batch %zu bucket %zu\n", batch, bucket_index);
+                            count = 0;
+                        } else {
+                            total_records += count;
+                        }
+                    }
+                }
+                
+                if (count < MAX_RECORDS_PER_BUCKET) {
+                    fseek(input, (MAX_RECORDS_PER_BUCKET - count) * record_size, SEEK_CUR);
                 }
             }
         }
@@ -205,26 +232,40 @@ void merge_and_sort_buckets(const char* input_file, const char* output_file, int
             qsort(buffer, total_records, sizeof(Record), compare_records);
         }
 
-        all_sorted[bucket_index] = buffer;
-        record_counts[bucket_index] = (uint16_t)total_records;
+        #pragma omp ordered
+        {
+            fputc(total_records & 0xFF, output);
+            fputc((total_records >> 8) & 0xFF, output);
+
+            if (total_records > 0) {
+                fwrite(buffer, record_size, total_records, output);
+            }
+
+            size_t padding = max_records_per_bucket - total_records;
+            for (size_t j = 0; j < padding; j++) {
+                fwrite(&empty_record, record_size, 1, output);
+            }
+        }
+
+        free(buffer);
 
         #pragma omp atomic
-        (*sorted_count)++;
+        sorted_count++;
 
-        #pragma omp critical
+        #pragma omp critical(progress)
         {
             double now = omp_get_wtime();
             double interval = now - last_print;
             if (interval >= PRINT_TIME) {
                 double elapsed = now - start_time;
-                double percent = (100.0 * (*sorted_count)) / NUM_BUCKETS;
-                double eta = elapsed * (NUM_BUCKETS - (*sorted_count)) / ((*sorted_count) + 1e-5);
-                double mb_done = (*sorted_count) * max_records_per_bucket * sizeof(Record) / 1e6;
+                double percent = (100.0 * sorted_count) / NUM_BUCKETS;
+                double eta = elapsed * (NUM_BUCKETS - sorted_count) / (sorted_count + 1e-5);
+                double mb_done = sorted_count * max_records_per_bucket * record_size / 1e6;
                 double mb_per_sec = mb_done / elapsed;
 
                 print_count++;
-                printf("[%d][SORTMERGE]: %.2f%% completed, ETA %.1f seconds, %zu/%zu flushes, %.1f MB/sec\n",
-                    print_count, percent, eta, *sorted_count, (size_t)NUM_BUCKETS, mb_per_sec);
+                printf("[%d][SORTMERGE]: %.2f%% completed, ETA %.1f seconds, %zu/%zu buckets, %.1f MB/sec\n",
+                    print_count, percent, eta, sorted_count, (size_t)NUM_BUCKETS, mb_per_sec);
                 fflush(stdout);
                 last_print = now;
             }
@@ -232,48 +273,17 @@ void merge_and_sort_buckets(const char* input_file, const char* output_file, int
     }
 
     fclose(input);
-    free(sorted_count);
-
-    FILE* output = fopen(output_file, "wb");
-    if (!output) {
-        perror("Failed to open output file");
-        return;
-    }
-
-    for (size_t bucket_index = 0; bucket_index < NUM_BUCKETS; bucket_index++) {
-        uint16_t count = record_counts[bucket_index];
-        Record* records = all_sorted[bucket_index];
-
-        fputc(count & 0xFF, output);
-        fputc((count >> 8) & 0xFF, output);
-
-        fwrite(records, record_size, count, output);
-
-        size_t pad_count = max_records_per_bucket - count;
-        if (pad_count > 0) {
-            Record zero = {0};
-            for (size_t j = 0; j < pad_count; j++) {
-                fwrite(&zero, record_size, 1, output);
-            }
-        }
-
-        free(records);
-    }
-
     fclose(output);
-    free(all_sorted);
-    free(record_counts);
 }
 
 
-
-int compare_records(const void* a, const void* b) {
+int compare_records(const void* a, const void* b) { //Checks if a record is sorted or not by comparing them
     const Record* record_a = (const Record*)a;
     const Record* record_b = (const Record*)b;
     return memcmp(record_a->hash, record_b->hash, HASH_SIZE);
 }
 
-int calc_prefix_bytes(size_t num_buckets){
+int calc_prefix_bytes(size_t num_buckets){ //Makes sure the prefixes are big enough to index correctly to the bucket array
     int bits = 0;
     size_t buckets = num_buckets - 1;
     while (buckets > 0) {
