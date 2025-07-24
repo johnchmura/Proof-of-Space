@@ -167,6 +167,14 @@ int main(int argc, char* argv[]) {
         
         merge_and_sort_buckets(TEMP_FILE,filename,num_threads_sort);
     
+        FILE* out_final = fopen(filename, "rb+");
+        
+        if (out_final) {
+            fflush(out_final);
+            fsync(fileno(out_final));
+            fclose(out_final);
+        }
+
         double total_time = omp_get_wtime() - start_time;
         double mhps = (NUM_RECORDS / 1e6) / total_time;
         double mbps = ((NUM_RECORDS * sizeof(Record)) / 1e6) / total_time;
