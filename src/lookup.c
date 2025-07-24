@@ -127,7 +127,8 @@ Record* search_records(FILE* file, const uint8_t* hash, int num_prefix_bytes, in
     int right = record_count - 1;
     while (left <= right) {
         int mid = left + (right - left) / 2;
-        int cmp = memcmp(records[mid].hash, hash, HASH_SIZE);
+        int cmp = memcmp(records[mid].hash, hash, num_prefix_bytes);
+
         if (cmp == 0) {
             Record* found_record = malloc(sizeof(Record));
             if (!found_record) {
@@ -149,8 +150,9 @@ Record* search_records(FILE* file, const uint8_t* hash, int num_prefix_bytes, in
     return NULL;
 }
 
+
 Record* read_bucket(FILE* file, size_t bucket_index, uint16_t* record_count, int* num_seeks) {
-    size_t bucket_size = 2 + MAX_RECORDS_PER_BUCKET * sizeof(Record);
+    size_t bucket_size = 2 + RECORDS_BIG_BUCKET * sizeof(Record);
     size_t offset = bucket_index * bucket_size;
 
     if (fseek(file, offset, SEEK_SET) != 0) {
@@ -166,28 +168,39 @@ Record* read_bucket(FILE* file, size_t bucket_index, uint16_t* record_count, int
     int end = fgetc(file);
     if (start == EOF || end == EOF) {
         perror("Failed to read record count");
-        fclose(file);
         return NULL;
     }
 
     uint16_t count = (uint16_t)(start | (end << 8));
     if (record_count) *record_count = count;
 
-    Record* records = malloc(sizeof(Record) * count);
-    if (!records) {
+    if (count > RECORDS_BIG_BUCKET) {
+        fprintf(stderr, "Invalid record count %u\n", count);
+        return NULL;
+    }
+
+    Record* buffer = malloc(sizeof(Record) * RECORDS_BIG_BUCKET);
+    if (!buffer) {
         fprintf(stderr, "Memory allocation failed\n");
-        fclose(file);
         return NULL;
     }
 
-    if (fread(records, sizeof(Record), count, file) != count) {
-        perror("Failed to read records");
-        free(records);
-        fclose(file);
+    if (fread(buffer, sizeof(Record), RECORDS_BIG_BUCKET, file) != RECORDS_BIG_BUCKET) {
+        perror("Failed to read bucket records");
+        free(buffer);
         return NULL;
     }
 
-    return records;
+    Record* valid_records = malloc(sizeof(Record) * count);
+    if (!valid_records) {
+        fprintf(stderr, "Memory allocation failed\n");
+        free(buffer);
+        return NULL;
+    }
+
+    memcpy(valid_records, buffer, count * sizeof(Record));
+    free(buffer);
+    return valid_records;
 }
 
 Record* read_bucket_by_hash(FILE* file, const uint8_t* hash, int num_prefix_bytes, uint16_t* record_count, int* num_seeks) {
@@ -226,7 +239,7 @@ uint8_t* generate_random_hash(int prefix_bytes) {
         return NULL;
     }
 
-    uint8_t* hash = calloc(HASH_SIZE, sizeof(uint8_t));
+    uint8_t* hash = calloc(prefix_bytes, sizeof(uint8_t));
     if (!hash) {
         fprintf(stderr, "Memory allocation failed for hash\n");
         return NULL;
