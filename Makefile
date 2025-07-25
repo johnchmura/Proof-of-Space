@@ -1,9 +1,9 @@
 K ?= 26
 B ?= 16
-M ?= 10
+R ?= 10
 
 CC = gcc
-CFLAGS = -Wall -O2 -IBLAKE3/c -DK=$(K) -DB=$(B) -DM=$(M)
+CFLAGS = -Wall -O2 -IBLAKE3/c -DK=$(K) -DB=$(B) -DR=$(R)
 
 HASH_SRC = src/hashgen.c src/pos.c \
       BLAKE3/c/blake3.c \

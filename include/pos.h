@@ -15,15 +15,15 @@
 #define B 16ULL
 #endif
 
-#ifndef M
-#define M 10ULL
+#ifndef R
+#define R 10
 #endif
 
 #define NUM_RECORDS (1ULL << K)
 #define TEMP_FILE "temp.bin"
 
 #define NUM_BUCKETS (1ULL << B) 
-#define MAX_RECORDS_PER_BUCKET 1024
+#define MAX_RECORDS_PER_BUCKET (1 << R)
 
 
 #define PRINT_TIME 5
@@ -42,7 +42,7 @@ typedef struct {
     uint16_t record_count;
 } Bucket;
 
-void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucket* buckets, size_t records_batch, double* last_print, size_t records_generated); //generate the original buckets
+void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucket* buckets, size_t records_batch, double* last_print, size_t records_generated, bool debug); //generate the original buckets
 
 int dump_buckets(Bucket* buckets, size_t num_buckets, const char* filename); //dump the original buckets into the temp file
 

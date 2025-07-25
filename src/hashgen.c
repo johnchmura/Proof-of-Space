@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
                 printf("Help:\n"
                        "  -f <filename>: Specify the output filename (default: buckets.bin)\n"
                        "  -d <bool>: Enable debug mode\n"
-                       "  -m <memory_mb>: Set memory size in MB (default: 16MB)\n"
+                       "  -m <memory_mb>: Set memory size in MB (default: 1024MB)\n"
                        "  -s <file_size_mb>: Set file size in MB (default: 1024MB)\n"
                        "  -t <num_threads_hash>: Set number of threads for hashing (default: 1)\n"
                        "  -o <num_threads_sort>: Set number of threads for sorting (default: 1)\n"
@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
         }
 
         
-        generate_records(nonce, num_prefix_bytes, buckets, this_batch, &last_print_time, records_generated);
+        generate_records(nonce, num_prefix_bytes, buckets, this_batch, &last_print_time, records_generated, debug);
 
         for (size_t i = 0; i < this_batch; ++i) { //Keep the nonce updated
             increment_nonce(nonce, NONCE_SIZE);
@@ -155,7 +155,7 @@ int main(int argc, char* argv[]) {
         double mhps = (NUM_RECORDS / 1e6) / total_time;
         double mbps = ((NUM_RECORDS * sizeof(Record)) / 1e6) / total_time;
 
-        printf("Completed %d GB file %s in %.2f seconds : %.2f MH/s %.2f MB/s\n", file_size_mb, filename, total_time, mhps, mbps);
+        printf("Completed %d MB file %s in %.2f seconds : %.2f MH/s %.2f MB/s\n", file_size_mb, filename, total_time, mhps, mbps);
 
         return 0;
     }

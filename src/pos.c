@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <omp.h>
 
@@ -18,7 +19,7 @@ void increment_nonce(uint8_t *nonce, size_t nonce_size){
     }
 }
 
-void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucket* buckets, size_t records_batch, double* last_print, uint64_t records_generated) {
+void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucket* buckets, size_t records_batch, double* last_print, uint64_t records_generated, bool debug) {
     omp_lock_t bucket_locks[NUM_BUCKETS];
 
     size_t total_flushes = NUM_BATCHES * NUM_BUCKETS;
@@ -74,7 +75,7 @@ void generate_records(const uint8_t* starting_nonce, int num_prefix_bytes, Bucke
             omp_unset_lock(&bucket_locks[bucket_i]);
 
             increment_nonce(local_nonce, NONCE_SIZE);
-            if (tid == 0) {
+            if (debug && tid == 0) {
                 double now = omp_get_wtime();
                 double interval = now - *last_print;
                 if (interval >= PRINT_TIME) {
