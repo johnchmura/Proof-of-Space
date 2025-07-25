@@ -8,7 +8,7 @@ K=N: Compiles all source files and sets the number of records to the the value 2
 B=N: Sets number of buckets to 2^N
 R=N: Sets number of records per bucket to N
 
-Example usage - make K=32 B=17 R=11
+Example usage - make K=32 B=17 R=11 (4GB of memory) (64GB filesize)
 
 These are the only ways to change these numbers without going and changing values in the code.
 
