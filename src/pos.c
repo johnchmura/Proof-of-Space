@@ -277,6 +277,76 @@ void merge_and_sort_buckets(const char* input_file, const char* output_file, int
     fclose(output);
 }
 
+void sort_buckets_in_memory(Bucket* buckets, const char* output_file) {
+    FILE* out = fopen(output_file, "wb");
+    if (!out) {
+        perror("Failed to open output file for writing");
+        return;
+    }
+
+    Record empty_record = {0};
+
+    static double start_time = 0;
+    if (start_time == 0) start_time = omp_get_wtime();
+    double last_print = start_time;
+    static int print_count = 0;
+
+    size_t completed = 0;
+
+    #pragma omp parallel for ordered schedule(static, 1)
+    for (size_t i = 0; i < NUM_BUCKETS; i++) {
+        Bucket* bucket = &buckets[i];
+
+        if (bucket->record_count > 1) {
+            qsort(bucket->records, bucket->record_count, sizeof(Record), compare_records);
+        }
+
+        #pragma omp ordered
+        {
+
+            fputc(bucket->record_count & 0xFF, out);
+            fputc((bucket->record_count >> 8) & 0xFF, out);
+
+
+            if (bucket->record_count > 0) {
+                fwrite(bucket->records, sizeof(Record), bucket->record_count, out);
+            }
+
+
+            size_t padding = MAX_RECORDS_PER_BUCKET - bucket->record_count;
+            for (size_t j = 0; j < padding; j++) {
+                fwrite(&empty_record, sizeof(Record), 1, out);
+            }
+        }
+
+
+        #pragma omp atomic
+        completed++;
+
+        #pragma omp critical
+        {
+            double now = omp_get_wtime();
+            double interval = now - last_print;
+            if (interval >= PRINT_TIME) {
+                double elapsed = now - start_time;
+                double percent = (100.0 * completed) / NUM_BUCKETS;
+                double eta = elapsed * (NUM_BUCKETS - completed) / (completed + 1e-5);
+                double mb_done = completed * MAX_RECORDS_PER_BUCKET * sizeof(Record) / 1e6;
+                double mb_per_sec = mb_done / elapsed;
+
+                print_count++;
+                printf("[%d][INMEM_SORT]: %.2f%% completed, ETA %.1f sec, %zu/%zu buckets, %.1f MB/sec\n",
+                    print_count, percent, eta, completed, (size_t)NUM_BUCKETS, mb_per_sec);
+                fflush(stdout);
+                last_print = now;
+            }
+        }
+    }
+
+    fclose(out);
+}
+
+
 
 int compare_records(const void* a, const void* b) { //Checks if a record is sorted or not by comparing them
     const Record* record_a = (const Record*)a;

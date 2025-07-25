@@ -23,9 +23,10 @@ int main(int argc, char* argv[]) {
     int num_threads_hash = 1;
     int num_threads_sort = 1;
     int num_threads_write = 1;
+    bool in_memory = false;
     int opt;
 
-    while (( opt = getopt(argc, argv, "f:d:m:s:t:o:i:h")) != -1) {
+    while (( opt = getopt(argc, argv, "f:d:m:s:t:o:i:k:h")) != -1) {
         switch (opt) {
             case 'f':
                 filename = optarg;
@@ -48,6 +49,9 @@ int main(int argc, char* argv[]) {
             case 'i':
                 num_threads_write = atoi(optarg);
                 break;
+            case 'k':
+                in_memory = strcmp(optarg, "true") == 0 || strcmp(optarg, "1") == 0;
+                break;
             case 'h':
                 printf("Help:\n"
                        "  -f <filename>: Specify the output filename (default: buckets.bin)\n"
@@ -57,6 +61,7 @@ int main(int argc, char* argv[]) {
                        "  -t <num_threads_hash>: Set number of threads for hashing (default: 1)\n"
                        "  -o <num_threads_sort>: Set number of threads for sorting (default: 1)\n"
                        "  -i <num_threads_write>: Set number of threads for writing (default: 1)\n"
+                       "  -k <bool> enable sorting and storing all in memory\n"
                        "  -h: Display this help message\n");
                 return 0;
             default:
@@ -68,6 +73,7 @@ int main(int argc, char* argv[]) {
                        "  -t <num_threads_hash>: Set number of threads for hashing (default: 1)\n"
                        "  -o <num_threads_sort>: Set number of threads for sorting (default: 1)\n"
                        "  -i <num_threads_write>: Set number of threads for writing (default: 1)\n"
+                       "  -k <bool> enable sorting and storing all in memory\n"
                        "  -h: Display this help message\n");
                 return 0;
         }
@@ -92,8 +98,8 @@ int main(int argc, char* argv[]) {
 
     double start_time = omp_get_wtime();
     double last_print_time = omp_get_wtime();
-    if (mb_per_batch > memory_mb){ //Check if your dumps use too much memory
-        printf("Too much memory per bucket dump: %d\n",mb_per_batch);
+    if ((mb_per_batch > memory_mb) || (in_memory && NUM_BATCHES > 1)){ //Check if your dumps use too much memory
+        printf("Too much memory per bucket dump or too little bucket space for in memory: %d\n",mb_per_batch);
         return 1;
     }
     
@@ -131,20 +137,26 @@ int main(int argc, char* argv[]) {
             increment_nonce(nonce, NONCE_SIZE);
         }
 
-        if (dump_buckets(buckets, NUM_BUCKETS, TEMP_FILE) != 0) {
-            fprintf(stderr, "Failed to dump records\n");
-            free(buckets);
-            return 1;
+        if (!in_memory){
+            if (dump_buckets(buckets, NUM_BUCKETS, TEMP_FILE) != 0) {
+                fprintf(stderr, "Failed to dump records\n");
+                free(buckets);
+                return 1;
+            }
         }
         records_generated += this_batch;
     }
 
-        free(buckets);
-        
-        merge_and_sort_buckets(TEMP_FILE,filename,num_threads_sort);
+        if (in_memory) {
+            sort_buckets_in_memory(buckets, filename);
+            free(buckets);
+        }
+        else{
+            free(buckets);
+            merge_and_sort_buckets(TEMP_FILE,filename,num_threads_sort);
+        }
     
         FILE* out_final = fopen(filename, "rb+");
-
         if (out_final) {
             fflush(out_final);
             fsync(fileno(out_final));
@@ -156,7 +168,6 @@ int main(int argc, char* argv[]) {
         double mbps = ((NUM_RECORDS * sizeof(Record)) / 1e6) / total_time;
 
         printf("Completed %d MB file %s in %.2f seconds : %.2f MH/s %.2f MB/s\n", file_size_mb, filename, total_time, mhps, mbps);
-
         return 0;
     }
 

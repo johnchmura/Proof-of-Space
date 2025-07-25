@@ -170,9 +170,6 @@ ssize_t verify_hashes_file(const char* filename, bool verify_hashes) {
         if (has_prev && record_count > 0) {
             if (memcmp(prev_record.hash, records[0].hash, HASH_SIZE) > 0) {
                 num_unsorted++;
-                if (debug) {
-                    fprintf(stderr, "Global sort violation: prev > current at bucket %zu\n", bucket);
-                }
             }
         }
         if (record_count > 0) {

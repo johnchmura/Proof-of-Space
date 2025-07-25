@@ -50,6 +50,7 @@ void increment_nonce(uint8_t *nonce, size_t nonce_size); //helper function for i
 
 int compare_records(const void* a, const void* b);
 void merge_and_sort_buckets(const char* input_file, const char* output_file, int num_threads_sort); //Gather all the buckets from the temp file and then sort and dump into the output file
+void sort_buckets_in_memory(Bucket* buckets, const char* output_file);
 
 int calc_max_records_per_bucket(size_t memory_mb);
 int calc_prefix_bytes(size_t num_buckets);
