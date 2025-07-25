@@ -26,6 +26,7 @@ Running the compiled files:
   -t <num_threads_hash>: Set number of threads for hashing (default: 1)
   -o <num_threads_sort>: Set number of threads for sorting (default: 1)
   -i <num_threads_write>: Set number of threads for writing (default: 1)
+  -k <bool> Specify if you want to run in memory only
   -h: Display this help message
 
 ./hashverify commands:
