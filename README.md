@@ -2,11 +2,15 @@ USAGE:
 
 Make File:
 
-make; make clean; make K=N 
-
 make: Compiles all source files to be run via ./vault, ./hashgen, ./hashverify
 make clean: Clears out the compiled files
-make K=N: Compiles all source files and sets the number of records to the the value 2^N.
+K=N: Compiles all source files and sets the number of records to the the value 2^N.
+B=N: Sets number of buckets to 2^N
+R=N: Sets number of records per bucket to N
+
+Example usage - make K=32 B=17 R=11
+
+These are the only ways to change these numbers without going and changing values in the code.
 
 Running the compiled files:
 
