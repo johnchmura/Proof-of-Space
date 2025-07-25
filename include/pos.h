@@ -11,11 +11,19 @@
 #define K 26ULL
 #endif
 
+#ifndef B
+#define B 16ULL
+#endif
+
+#ifndef M
+#define M 10ULL
+#endif
+
 #define NUM_RECORDS (1ULL << K)
 #define TEMP_FILE "temp.bin"
 
-#define NUM_BUCKETS 67109// 67100 buckets at 1000 records is about a GB of memory //134218
-#define MAX_RECORDS_PER_BUCKET 1000
+#define NUM_BUCKETS (1ULL << B) 
+#define MAX_RECORDS_PER_BUCKET 1024
 
 
 #define PRINT_TIME 5

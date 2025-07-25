@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
         printf("RECORD_SIZE=%zuB\n", sizeof(Record));
         printf("HASH_SIZE=%dB\n", HASH_SIZE);
         printf("NONCE_SIZE=%dB\n", NONCE_SIZE);
-        printf("BUCKETS=%d\n", NUM_BUCKETS);
+        printf("BUCKETS=%lld\n", NUM_BUCKETS);
     }
 
     int num_prefix_bytes = calc_prefix_bytes(NUM_BUCKETS);

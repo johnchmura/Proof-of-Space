@@ -133,7 +133,10 @@ ssize_t verify_hashes_file(const char* filename, bool verify_hashes) {
     double last_print_time = start_time;
     static int print_count = 0;
 
-    for (size_t bucket = 0; bucket < NUM_BUCKETS; bucket++) { // go through each bucket and grab the records to check if they are sorted
+    Record prev_record;
+    bool has_prev = false;
+
+    for (size_t bucket = 0; bucket < NUM_BUCKETS; bucket++) {
         uint8_t header[2];
         if (fread(header, 1, 2, file) != 2) {
             fprintf(stderr, "Failed to read record count header for bucket %zu\n", bucket);
@@ -164,6 +167,19 @@ ssize_t verify_hashes_file(const char* filename, bool verify_hashes) {
             }
         }
 
+        if (has_prev && record_count > 0) {
+            if (memcmp(prev_record.hash, records[0].hash, HASH_SIZE) > 0) {
+                num_unsorted++;
+                if (debug) {
+                    fprintf(stderr, "Global sort violation: prev > current at bucket %zu\n", bucket);
+                }
+            }
+        }
+        if (record_count > 0) {
+            prev_record = records[record_count - 1];
+            has_prev = true;
+        }
+
         total_records += record_count;
         free(records);
 
@@ -184,6 +200,7 @@ ssize_t verify_hashes_file(const char* filename, bool verify_hashes) {
     fclose(file);
     return total_records;
 }
+
 
 
 
