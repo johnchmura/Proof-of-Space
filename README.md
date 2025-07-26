@@ -1,5 +1,16 @@
 USAGE: 
 
+First clone in BLAKE3 hashing into project directory
+
+URL: https://github.com/BLAKE3-team/BLAKE3
+
+CLONING:
+HTTPS -> https://github.com/BLAKE3-team/BLAKE3.git
+SSH -> git@github.com:BLAKE3-team/BLAKE3.git
+GITHUB CLI -> gh repo clone BLAKE3-team/BLAKE3
+
+Then run the make file with desired arguments.
+
 Make File:
 
 make: Compiles all source files to be run via ./vault, ./hashgen, ./hashverify
