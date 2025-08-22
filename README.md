@@ -1,5 +1,3 @@
-Got it! We can remove the performance table and just rely on your **results image** to show the generation speed. Here’s the updated GitHub-ready README with only your images for performance and lookup:
-
 ---
 
 # Proof-of-Space Generator (C + OpenMP + BLAKE3)
