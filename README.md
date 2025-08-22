@@ -143,9 +143,3 @@ make K=32 B=17 R=11
 *Generates a 64GB dataset with 2^32 records, verifies hashes, and performs prefix lookups.*
 
 ---
-
-This version now **relies entirely on your images** for performance and lookup results, keeping the README visually clean.
-
-If you want, I can **also slightly tweak the layout so the “Results” section looks like a mini dashboard** with Generation and Lookup images side by side for a more presentation-style README.
-
-Do you want me to do that?
