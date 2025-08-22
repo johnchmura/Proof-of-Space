@@ -40,8 +40,8 @@ git clone https://github.com/BLAKE3-team/BLAKE3.git
 2. **Clone this repository:**
 
 ```bash
-git clone <your_repo_url>
-cd <your_repo_name>
+git clone https://github.com/johnchmura/Proof-of-Space.git
+cd Proof-of-Space
 ```
 
 3. **Build using `make`:**
